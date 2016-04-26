@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:gx="http://www.google.com/kml/ext/2.2">
+<Document>
+<name>doc</name>
+<visibility>1</visibility>
+<Schema name="npl_admbnda_adm5_25k_50k_sdn" id="npl_admbnda_adm5_25k_50k_sdn">
+<SimpleField type="xsd:int" name="OBJECTID"/>
+<SimpleField type="xsd:string" name="admin0Name_en"/>
+<SimpleField type="xsd:string" name="admin0Pcode"/>
+<SimpleField type="xsd:string" name="admin1Name_en"/>
+<SimpleField type="xsd:string" name="admin1Pcode"/>
+<SimpleField type="xsd:string" name="admin2Name_en"/>
+<SimpleField type="xsd:string" name="admin2Pcode"/>
+<SimpleField type="xsd:string" name="admin3Name_en"/>
+<SimpleField type="xsd:string" name="admin3Pcode"/>
+<SimpleField type="xsd:string" name="admin4Name_en"/>
+<SimpleField type="xsd:string" name="admin4Pcode"/>
+<SimpleField type="xsd:string" name="admin5Name_en"/>
+<SimpleField type="xsd:string" name="admin5Pcode"/>
+<SimpleField type="xsd:string" name="admin5RefName"/>
+<SimpleField type="xsd:string" name="admin5AltName1_en"/>
+<SimpleField type="xsd:string" name="admin5AltName2_en"/>
+<SimpleField type="xsd:string" name="date"/>
+<SimpleField type="xsd:string" name="validOn"/>
+<SimpleField type="xsd:string" name="validTo"/>
+<SimpleField type="xsd:double" name="Shape_STArea__"/>
+<SimpleField type="xsd:double" name="Shape_STLength__"/>
+<SimpleField type="xsd:double" name="Shape_Length"/>
+<SimpleField type="xsd:double" name="Shape_Area"/>
+</Schema>
+<Folder id="kml_ft_npl_admbnda_adm5_25k_50k_sdn">
+<name>npl_admbnda_adm5_25k_50k_sdn</name>
+
+</Folder>
+</Document></kml>

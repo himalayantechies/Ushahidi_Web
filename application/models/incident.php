@@ -260,7 +260,8 @@ class Incident_Model extends ORM {
 		if (! $count)
 		{
 			$sql = 'SELECT DISTINCT i.id incident_id, i.incident_title, i.incident_description, i.incident_date, i.incident_mode, i.incident_active, '
-				. 'i.incident_verified, i.location_id, l.country_id, l.location_name, l.latitude, l.longitude ';
+				. 'i.incident_verified, i.location_id, i.pcode, i.adm_level, l.country_id, l.location_name, l.latitude, l.longitude '
+				. ', act.actionable, act.action_urgent, act.action_taken, act.action_summary, act.action_closed, com.comment_description, com.comment_date ';
 		}
 		// Count query
 		else
@@ -272,9 +273,12 @@ class Incident_Model extends ORM {
 		if (count($radius) > 0 AND array_key_exists('latitude', $radius) AND array_key_exists('longitude', $radius)
 			AND array_key_exists('distance', $radius))
 		{
-			// Calculate the distance of each point from the starting point
+
+			// Calculate the distance of each point from the starting point using Spherical Law of Cosines
+			// 60 = nautical miles per degree of latitude, 1.1515 miles in every nautical mile, 1.609344 km = 1 km
+			// more details about the math here: http://sgowtham.net/ramblings/2009/08/04/php-calculating-distance-between-two-locations-given-their-gps-coordinates/
 			$sql .= ", ((ACOS(SIN(%s * PI() / 180) * SIN(l.`latitude` * PI() / 180) + COS(%s * PI() / 180) * "
-				. "	COS(l.`latitude` * PI() / 180) * COS((%s - l.`longitude`) * PI() / 180)) * 180 / PI()) * 60 * 1.1515) AS distance ";
+				. "	COS(l.`latitude` * PI() / 180) * COS((%s - l.`longitude`) * PI() / 180)) * 180 / PI()) * 60 * 1.1515 * 1.609344) AS distance ";
 
 			$sql = sprintf($sql, $radius['latitude'], $radius['latitude'], $radius['longitude']);
 
@@ -285,7 +289,9 @@ class Incident_Model extends ORM {
 		$sql .=  'FROM '.$table_prefix.'incident i '
 			. 'LEFT JOIN '.$table_prefix.'location l ON (i.location_id = l.id) '
 			. 'LEFT JOIN '.$table_prefix.'incident_category ic ON (ic.incident_id = i.id) '
-			. 'LEFT JOIN '.$table_prefix.'category c ON (ic.category_id = c.id) ';
+			. 'LEFT JOIN '.$table_prefix.'category c ON (ic.category_id = c.id) '
+			. 'LEFT JOIN '.$table_prefix.'actionable act ON (i.id = act.incident_id) '
+			. 'LEFT JOIN '.$table_prefix.'comment com ON (i.id = com.incident_id AND com.comment_spam = 0 AND com.comment_active = 1 AND com.comment_date = (SELECT MAX(comment_date) FROM comment WHERE incident_id = i.id AND com.comment_spam = 0 AND com.comment_active = 1)) ';
 		
 		// Check if the all reports flag has been specified
 		if (array_key_exists('all_reports', $where) AND $where['all_reports'] == TRUE)
@@ -311,6 +317,8 @@ class Incident_Model extends ORM {
 		
 		// Add the having clause
 		$sql .= $having_clause;
+		
+		
 
 		// Check for the order field and sort parameters
 		if ( ! empty($order_field) AND ! empty($sort) AND (strtoupper($sort) == 'ASC' OR strtoupper($sort) == 'DESC'))
@@ -322,6 +330,8 @@ class Incident_Model extends ORM {
 			$sql .= 'ORDER BY i.incident_date DESC ';
 		}
 
+		$sql .= ', com.comment_date DESC ';
+		
 		// Check if the record limit has been specified
 		if ( ! empty($limit) AND is_int($limit) AND intval($limit) > 0)
 		{
@@ -331,10 +341,15 @@ class Incident_Model extends ORM {
 		{
 			$sql .= 'LIMIT '.$limit->sql_offset.', '.$limit->items_per_page;
 		}
+
+		//print_r($sql);
 		
 		// Event to alter SQL
 		Event::run('ushahidi_filter.get_incidents_sql', $sql);
-
+		
+		// 
+		//print_r($sql); //exit;
+		
 		// Kohana::log('debug', $sql);
 		return Database::instance()->query($sql);
 	}
@@ -392,9 +407,11 @@ class Incident_Model extends ORM {
 			unset ($location);
 
 			// Query to fetch the neighbour
+			// 60 = nautical miles per degree of latitude, 1.1515 miles in every nautical mile, 1.609344 km = 1 km
+			// more details about the math here: http://sgowtham.net/ramblings/2009/08/04/php-calculating-distance-between-two-locations-given-their-gps-coordinates/
 			$sql = "SELECT DISTINCT i.*, l.`latitude`, l.`longitude`, l.location_name, "
 				. "((ACOS(SIN( :lat * PI() / 180) * SIN(l.`latitude` * PI() / 180) + COS( :lat * PI() / 180) * "
-				. "	COS(l.`latitude` * PI() / 180) * COS(( :lon - l.`longitude`) * PI() / 180)) * 180 / PI()) * 60 * 1.1515) AS distance "
+				. "	COS(l.`latitude` * PI() / 180) * COS(( :lon - l.`longitude`) * PI() / 180)) * 180 / PI()) * 60 * 1.1515 * 1.609344) AS distance "
 				. "FROM `".$table_prefix."incident` AS i "
 				. "INNER JOIN `".$table_prefix."location` AS l ON (l.`id` = i.`location_id`) "
 				. "WHERE i.incident_active = 1 "

@@ -103,8 +103,17 @@ class Login_Controller extends Template_Controller {
 		// Show that confirming the email address was a success
 		if (isset($_GET["confirmation_success"]))
 		{
-			$message_class = 'login_success';
-			$message = Kohana::lang('ui_main.confirm_email_successful');
+			// Check if approval is still required
+			if (Kohana::config('settings.manually_approve_users'))
+			{
+				$message_class = 'login_success';
+				$message = Kohana::lang('ui_main.confirm_email_successful_and_approval');
+			}
+			else
+			{
+				$message_class = 'login_success';
+				$message = Kohana::lang('ui_main.confirm_email_successful');
+			}
 		}
 
 		// Is this a password reset request? We need to show the password reset form if it is
@@ -178,8 +187,19 @@ class Login_Controller extends Template_Controller {
 							url::redirect("login?new_confirm_email");
 						}
 						
-						// Generic Error if exception not passed
-						$post->add_error('password', 'login error');
+						// If user isn't approved, show not approved error
+						elseif (Kohana::config('settings.manually_approve_users')
+							AND ! ORM::factory('user', $user)->has(ORM::factory('role', 'login'))
+							)
+						{
+							$post->add_error('username', 'approval error');
+						}
+						
+						else
+						{
+							// Generic Error if exception not passed
+							$post->add_error('password', 'login error');
+						}
 					}
 				}
 				catch (Exception $e)
@@ -225,7 +245,7 @@ class Login_Controller extends Template_Controller {
 			//	Add some filters
 			$post->pre_filter('trim', TRUE);
 
-			$post->add_rules('password','required', 'length['.kohana::config('auth.password_length').']','alpha_dash');
+			$post->add_rules('password','required', 'length['.kohana::config('auth.password_length').']');
 			$post->add_rules('name','required','length[3,100]');
 			$post->add_rules('email','required','email','length[4,64]');
 			$post->add_callbacks('username', array($this,'username_exists_chk'));
@@ -235,7 +255,7 @@ class Login_Controller extends Template_Controller {
 			if ( ! empty($post->password))
 			{
 				$post->add_rules('password','required','length['.kohana::config('auth.password_length').']'
-					,'alpha_dash','matches[password_again]');			
+					,'matches[password_again]');			
 			}
 			//pass the post object to any plugins that care to know.
 			Event::run('ushahidi_action.users_add_login_form', $post);
@@ -262,6 +282,11 @@ class Login_Controller extends Template_Controller {
 				{
 					$message_class = 'login_success';
 					$message = Kohana::lang('ui_main.login_confirmation_sent');
+				}
+				elseif ($this->_send_email_admin_approval($user))
+				{
+					$message_class = 'login_success';
+					$message = Kohana::lang('ui_main.login_approval_required');
 				}
 				else
 				{
@@ -364,8 +389,8 @@ class Login_Controller extends Template_Controller {
 			$post->pre_filter('trim', TRUE);
 			$post->add_rules('token','required');
 			$post->add_rules('changeid','required');
-			$post->add_rules('password','required','length['.Kohana::config('auth.password_length').']','alpha_dash');
-			$post->add_rules('password','required','length['.Kohana::config('auth.password_length').']','alpha_dash','matches[password_again]');
+			$post->add_rules('password','required','length['.Kohana::config('auth.password_length').']');
+			$post->add_rules('password','required','length['.Kohana::config('auth.password_length').']','matches[password_again]');
 
 			if ($post->validate())
 			{
@@ -653,6 +678,11 @@ class Login_Controller extends Template_Controller {
 				$user->add(ORM::factory('role', 'login'));
 				$user->add(ORM::factory('role', 'member'));
 			}
+			else
+			{
+				// Try sending and email to the admin for approval
+				$this->_send_email_admin_approval($user);
+			}
 
 			$user->save();
 
@@ -925,6 +955,45 @@ class Login_Controller extends Template_Controller {
 	}
 
 	/**
+	 * Sends an email for admin approval
+	 */
+	private function _send_email_admin_approval($user)
+	{
+		// Check if we require users to go through this process
+		if (! Kohana::config('settings.manually_approve_users'))
+		{
+			return FALSE;
+		}
+
+		$url = url::site('admin/users/edit/'.$user->id);
+
+		$admins = ORM::factory('User')
+			->join('roles_users', 'roles_users.user_id', 'users.id', 'INNER')
+			->join('roles', 'roles_users.role_id', 'roles.id', 'INNER')
+			->where("(roles.name = 'superadmin' OR roles.name = 'admin')")
+			->where("users.notify", 1)
+			->find_all();
+		
+		$emails = $admins->select_list('id', 'email');
+		
+		//$to = $emails;
+		$from = array(Kohana::config('settings.site_email'), Kohana::config('settings.site_name'));
+		$subject = Kohana::config('settings.site_name').' '.Kohana::lang('ui_main.login_signup_admin_approval_subject');
+		$message = Kohana::lang('ui_main.login_signup_admin_approval_message',
+			array(Kohana::config('settings.site_name'), $url));
+
+		foreach ($emails as $id => $email)
+		{
+			if ( ! email::send($email, $from, $subject, $message, FALSE))
+			{
+				Kohana::log('error', "email to $email could not be sent");
+			}
+		}
+
+		return TRUE;
+	}
+
+	/**
 	 * Email reset link to the user.
 	 *
 	 * @param the email address of the user requesting a password reset.
@@ -945,7 +1014,7 @@ class Login_Controller extends Template_Controller {
 		}
 		catch (Exception $e)
 		{
-			Kohana::log('warning', Swift_LogContainer::getLog()->dump(true));
+			Kohana::log('alert', Swift_LogContainer::getLog()->dump(true));
 			return FALSE;
 		}
 

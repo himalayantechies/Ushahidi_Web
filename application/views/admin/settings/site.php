@@ -135,6 +135,13 @@
 								<?php print form::dropdown('allow_reports', $yesno_array, $form['allow_reports']); ?>
 							</span>
 						</div>
+						 <!--Adding max file upload setting-->
+						<div class="row">
+						 <h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_max_upload_size"); ?>"><?php echo Kohana::lang('settings.site.max_upload_size');?></a></h4>
+						 	<span class="sel-holder">
+						 		<?php print form::input('max_upload_size', $form['max_upload_size'], ' class="text long2"', 'id = max_upload_size'); ?>
+						 	</span>
+						</div>
 						<div class="row">
 							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_allow_alerts"); ?>"><?php echo Kohana::lang('settings.site.allow_alerts');?></a></h4>
 							<span class="sel-holder">
@@ -146,16 +153,39 @@
 							<?php print form::input('alerts_email', $form['alerts_email'], ' class="text long2"', 'id = alert_email'); ?>
 						</div>
 						<div class="row">
+							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_allow_follow"); ?>"><?php echo Kohana::lang('settings.site.allow_follow');?></a></h4>
+							<span class="sel-holder">
+								<?php print form::dropdown('allow_follow', $yesno_array, $form['allow_follow']); ?>
+							</span>
+						</div>
+						<div class="row">
 							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_allow_comments"); ?>"><?php echo Kohana::lang('settings.site.allow_comments');?></a></h4>
 							<span class="sel-holder">
 								<?php print form::dropdown('allow_comments', $comments_array, $form['allow_comments']); ?>
 							</span>
 						</div>
+						<!--  HT: Number of alert days setting -->
+						<div class="row">
+							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_alert_days"); ?>"><?php echo Kohana::lang('settings.site.alert_days');?></a>
+							<br /><?php echo Kohana::lang('settings.site.alert_days_notice');?></h4>
+							<?php print form::input('alert_days', $form['alert_days'], ' class="text long2"'); ?>
+						</div>
+						<!--  HT: End of Number of alert days setting -->
 						<div class="row">
 							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_allow_feed"); ?>"><?php echo Kohana::lang('settings.site.allow_feed');?></a></h4>
 							<span class="sel-holder">
 								<?php print form::dropdown('allow_feed', $yesno_array, $form['allow_feed']); ?>
 							</span>
+						</div>
+						<div class="row">
+							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_allow_feed_category"); ?>"><?php echo Kohana::lang('settings.site.allow_feed_category');?></a></h4>
+							<span class="sel-holder">
+								<?php print form::dropdown('allow_feed_category', $yesno_array, $form['allow_feed_category']); ?>
+							</span>
+						</div>
+						<div class="row">
+							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.feed_geolocation_user"); ?>"><?php echo Kohana::lang('settings.site.feed_geolocation_user');?></a></h4>
+							<?php print form::input('feed_geolocation_user', $form['feed_geolocation_user'], ' class="text long2"', 'id = alert_email'); ?>
 						</div>
 						<div class="row">
 							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_share_site_stats"); ?>"><?php echo Kohana::lang('settings.site.share_site_stats');?></a></h4>
@@ -191,12 +221,6 @@
 							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_require_email_confirmation"); ?>"><?php echo Kohana::lang('settings.site.require_email_confirmation');?></a></h4>
 							<span class="sel-holder">
 								<?php print form::dropdown('require_email_confirmation', $yesno_array, $form['require_email_confirmation']); ?>
-							</span>
-						</div>
-						<div class="row">
-							<h4><a href="#" class="tooltip" title="<?php echo Kohana::lang("tooltips.settings_checkins"); ?>"><?php echo Kohana::lang('settings.site.checkins');?></a></h4>
-							<span class="sel-holder">
-								<?php print form::dropdown('checkins', $yesno_array, $form['checkins']); ?>
 							</span>
 						</div>
 						<div class="row">

@@ -75,8 +75,11 @@ class VideoEmbed
 	public function set_url($url)
 	{
 		$this->service_name = $this->detect_service($url);
-		$services = $this->services();
-		$this->service = $services[$this->service_name];
+		if ($this->service_name !== FALSE)
+		{
+			$services = $this->services();
+			$this->service = $services[$this->service_name];
+		}
 		
 		$this->url = $this->clean_url($url);
 	}
@@ -151,7 +154,10 @@ class VideoEmbed
 		$output = FALSE;
 		
 		// Get video code from url.
-		$code = str_replace($this->service['baseurl'], "", $this->url);
+		if (isset($this->service['baseurl']))
+		{
+			$code = str_replace($this->service['baseurl'], "", $this->url);
+		}
 		
 		switch($this->service_name)
 		{
@@ -160,7 +166,7 @@ class VideoEmbed
 				$you_auto = ($auto) ? "&autoplay=1" : "";
 				
 				$output = '<iframe id="ytplayer" type="text/html" width="320" height="265" '
-					. 'src="http://www.youtube.com/embed/'.html::escape($code).'?origin='.urlencode(url::base()).html::escape($you_auto).'" '
+					. 'src="//www.youtube.com/embed/'.html::escape($code).'?origin='.urlencode(url::base()).html::escape($you_auto).'" '
 					. 'frameborder="0"></iframe>';
 			break;
 			
@@ -169,7 +175,7 @@ class VideoEmbed
 				$google_auto = ($auto) ? "&autoPlay=true" : "";
 				
 				$output = "<embed style='width:320px; height:265px;' id='VideoPlayback' type='application/x-shockwave-flash'"
-					. "	src='http://video.google.com/googleplayer.swf?docId=-".html::escape($code.$google_auto)."&hl=en' flashvars=''>"
+					. "	src='//video.google.com/googleplayer.swf?docId=-".html::escape($code.$google_auto)."&hl=en' flashvars=''>"
 					. "</embed>";
 			break;
 			
@@ -191,7 +197,7 @@ class VideoEmbed
 			case "vimeo":
 				$vimeo_auto = ($auto) ? "?autoplay=1" : "";
 				
-				$output = '<iframe src="http://player.vimeo.com/video/'.html::escape($code.$vimeo_auto).'" width="320" height="265" frameborder="0">'
+				$output = '<iframe src="//player.vimeo.com/video/'.html::escape($code.$vimeo_auto).'" width="320" height="265" frameborder="0">'
 					. '</iframe>';
 			break;
 		}
@@ -202,7 +208,7 @@ class VideoEmbed
 		
 		if (!$output)
 		{
-			$output = '<a href="'.$this->url.'" target="_blank">'.Kohana::lang('ui_main.view_view').'</a>';
+			$output = '<a href="'.$this->url.'" target="_blank">'.Kohana::lang('ui_main.view_video').'</a>';
 		}
 
 		if ($echo) echo $output;
@@ -220,13 +226,23 @@ class VideoEmbed
 	{
 		$this->set_url($raw);
 		$output = FALSE;
-		
+
 		if (isset($this->service['oembed']))
 		{
-			$oembed = @json_decode(file_get_contents($this->service['oembed']."?url=".urlencode($this->url)));
-			if (!empty($oembed) AND ! empty($oembed->thumbnail_url))
+
+			$url = $this->service['oembed']."?url=".urlencode($this->url);
+
+			$request = new HttpClient($url);
+			$result = $request->execute();
+
+			if ($result !== FALSE)
 			{
-				$output = $oembed->thumbnail_url;
+				$oembed = json_decode($result);
+
+				if (!empty($oembed) AND ! empty($oembed->thumbnail_url))
+				{
+					$output = $oembed->thumbnail_url;
+				}
 			}
 		}
 

@@ -1,9 +1,89 @@
-Ushahidi 2.7
+Ushahidi 2.7.4 (Bug fix release) - 05/08/2014
+-------------------------------------
+
+### Major Fixes
+
+* Upgraded Openlayers to version 2.13.1 (https://github.com/ushahidi/Ushahidi_Web/pull/1391) 
+* Stop checking what characters are in passowrd (https://github.com/ushahidi/Ushahidi_Web/pull/1373) 
+* Added option for admins to change the maximum file size for attaching photos to reports (https://github.com/ushahidi/Ushahidi_Web/pull/1369)
+* Delete cache after changing theme so changes reflect immediately (https://github.com/ushahidi/Ushahidi_Web/pull/1368)
+
+Ushahidi 2.7.3 (Bug fix release) - 23/04/2014
+-------------------------------------
+
+### Major Fixes
+
+* Timeline upgrade (https://github.com/ushahidi/Ushahidi_Web/pull/1341) 
+* Fixed issue with dual alert sign up (https://github.com/ushahidi/Ushahidi_Web/pull/1339) 
+* Updated sms helper and scheduler to add url in sms (https://github.com/ushahidi/Ushahidi_Web/pull/1339)
+* Check category translation on csv import to avoid category duplication (https://github.com/ushahidi/Ushahidi_Web/pull/1345)
+* Fixed issue with the reverse geocoder (https://github.com/ushahidi/Ushahidi_Web/pull/1336)
+* Fixed broken video embeds in reports when viewed over HTTPS (https://github.com/ushahidi/Ushahidi_Web/pull/1328)
+* Added South Sudan and Kosovo to the country list (https://github.com/ushahidi/Ushahidi_Web/pull/1324) 
+* Fixed issue with feed category 
+* Replaced feedback email after submit report with site email
+
+Ushahidi 2.7.2 (Bug fix release) - 28/01/2014
+-------------------------------------
+
+### Major Fixes
+
+* Tiding up conflicting logic on email alerts(https://github.com/ushahidi/Ushahidi_Web/issues/943) 
+* Escaping db password (https://github.com/ushahidi/Ushahidi_Web/issues/1265) 
+* Added Feed category (https://github.com/ushahidi/Ushahidi_Web/issues/1291) 
+* Fix incosistency in custom fields position(https://github.com/ushahidi/Ushahidi_Web/issues/1296) 
+* Handle bad file encodings when importing CSV files (https://github.com/ushahidi/Ushahidi_Web/issues/1140) 
+* Adding Nominatin as a geocoder option (https://github.com/ushahidi/Ushahidi_Web/issues/794) 
+* Fixed reports date picker 
+* Added reverse geocoder 
+* Moved header_nav.php to themes/default/views/ to allow theme override 
+* Cleaned up alerts scheduler 
+* Removed ci_cumulus theme 
+* Removed checkins 
+* Added Delete All Reports for Admin
+* Fixed timeline js timing out
+* Lots of code clean up, error handling and coding standards.
+
+Ushahidi 2.7.1 (Bug fix release) - 04/09/2013
+-------------------------------------
+
+### Major Fixes
+
+* Ushahidi should not upsize uploaded images, only downsize them[#1132](https://github.com/ushahidi/Ushahidi_Web/issues/1132)
+* Tagline running under report button[#1040](https://github.com/ushahidi/Ushahidi_Web/issues/1040)
+* Long, Lat order on mouse hover[#1092](https://github.com/ushahidi/Ushahidi_Web/issues/1092)
+* Bulk deletions coupled with single report deletion[#1093](https://github.com/ushahidi/Ushahidi_Web/issues/1093)
+* Unexpected Function error[#1123](https://github.com/ushahidi/Ushahidi_Web/issues/1123)
+* ‘Undefined’ on hover[#1067](https://github.com/ushahidi/Ushahidi_Web/issues/1067)
+* Wrong Content Type for RSS Feeds[#991](https://github.com/ushahidi/Ushahidi_Web/issues/991)
+* Twitter Credential Error[#1109](https://github.com/ushahidi/Ushahidi_Web/issues/1109)
+* Validation error on custom fields dropdown[#1113](https://github.com/ushahidi/Ushahidi_Web/issues/1113)
+* CSV Uploader[#1181](https://github.com/ushahidi/Ushahidi_Web/issues/1181)
+* Error with reports view page[#1176,1166,1178](https://github.com/ushahidi/Ushahidi_Web/issues/1176,https://github.com/ushahidi/Ushahidi_Web/issues/1166,https://github.com/ushahidi/Ushahidi_Web/issues/1178)
+* Login page issues[#1161](https://github.com/ushahidi/Ushahidi_Web/pull/1161)
+* Issues on Crowdmap[#1158](https://github.com/ushahidi/Ushahidi_Web/issues/1158)
+* Database table prefix installation[#1154](https://github.com/ushahidi/Ushahidi_Web/issues/1154)
+* Upload images .jpeg fails[#1136](https://github.com/ushahidi/Ushahidi_Web/issues/1136)
+* Database Error[#1149](https://github.com/ushahidi/Ushahidi_Web/issues/1149)
+* Category impact charts not loading[#1147](https://github.com/ushahidi/Ushahidi_Web/issues/1147)
+* Fatal error in stats page[#1134](https://github.com/ushahidi/Ushahidi_Web/pull/1134)
+* Twitter scheduler bugs[#1133](https://github.com/ushahidi/Ushahidi_Web/pull/1133)
+* CSV downloaded form platform throws errors on attempt to upload[#1140](https://github.com/ushahidi/Ushahidi_Web/issues/1140)
+* Default report time on reports always wrong[#1130](https://github.com/ushahidi/Ushahidi_Web/pull/1130)
+* Date picker issues in default theme[#1126](https://github.com/ushahidi/Ushahidi_Web/pull/1126)
+* Make nav helper more friendly and filterable for plugins and themes[#1125](https://github.com/ushahidi/Ushahidi_Web/pull/1125)
+* Cannot enable clean URLs from admin[#1124](https://github.com/ushahidi/Ushahidi_Web/pull/1124)
+* Unable to create new users, database error[#1122](https://github.com/ushahidi/Ushahidi_Web/pull/1122)
+* Incident location not on incident pages[#1121](https://github.com/ushahidi/Ushahidi_Web/issues/1122)
+* Table name escaping creates SQL error when there’s a table prefix[#1118](https://github.com/ushahidi/Ushahidi_Web/pull/1118)
+* Error adding report to a photo (Crowdmap Classic)[#1099](https://github.com/ushahidi/Ushahidi_Web/pull/1099)
+
+
+Ushahidi 2.7 (Bamako) - 02/05/2013
 -------------------------------------
 
 ### Major changes
 
-* Switched WYSIWYG HTML editor to Redactor as previous editor had many issues
 * Use OAuth to grab twitter feeds
 * Better XSS protection
 	- Add HTMLPurifier library for proper HTML sanitization

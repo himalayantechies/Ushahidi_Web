@@ -92,16 +92,10 @@ class Themes_Controller extends Admin_Controller {
 		$this->template->content->errors = $errors;
 		$this->template->content->form_error = $form_error;
 		$this->template->content->form_saved = $form_saved;
-		
-		$themes = addon::get_addons('theme');
-		foreach($themes as $key => $theme)
-		{
-			// We want to hide checkin themes if checkins is not enabled
-			if (!Kohana::config('settings.checkins') AND $theme['Checkins'] == 1)
-				unset($themes[$key]);
-		}
-		
+		$themes = addon::get_addons('theme');	
 		$this->template->content->themes = $themes;
+		//delete cache to make sure theme is reloaded after change
+  		$this->cache->delete_all();
 	}
 
 }

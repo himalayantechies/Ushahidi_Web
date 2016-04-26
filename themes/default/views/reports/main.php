@@ -84,17 +84,17 @@
 								<?php echo $category_tree_view; ?>
 							</ul>
 						</div>
-						
-						<h3>	
+
+						<h3>
 							<a href="#" class="small-link-button f-clear reset" onclick="removeParameterKey('radius', 'f-location-box');removeParameterKey('start_loc', 'f-location-box');">
 								<?php echo Kohana::lang('ui_main.clear')?>
 							</a>
-							<a class="f-title" href="#"><?php echo Kohana::lang('ui_main.location'); ?></a></h3>
+							<a class="f-title openLocationFilter" href="#"><?php echo Kohana::lang('ui_main.location'); ?></a></h3>
 						<div class="f-location-box">
 							<?php echo $alert_radius_view; ?>
 							<p></p>
 						</div>
-						
+
 						<h3>
 							<a href="#" class="small-link-button f-clear reset" onclick="removeParameterKey('mode', 'fl-incident-mode');">
 								<?php echo Kohana::lang('ui_main.clear')?>
@@ -189,6 +189,19 @@
 							<?php echo $custom_forms_filter; ?>
 							
 						</div>
+						<?php foreach($location_filter as $key => $loc_filter) { ?>
+							<h3>
+							<a href="#" class="small-link-button f-clear reset" onclick="removeParameterKey('lf', '<?php echo 'fl-adm-'.$key; ?>');"><?php echo Kohana::lang('ui_main.clear')?></a>
+								<a class="f-title" href="#"><?php echo location_filter::$admLevels[$key]['label'];?></a>
+							</h3>
+							<div class="f-location-box">
+								<ul class="filter-list <?php echo 'fl-adm-'.$key; ?>" id="location-filter-list">
+									<?php echo $loc_filter; ?>
+								</ul>
+							</div>
+						<?php } ?>
+						
+						
 						<?php
 							// Action, allows plugins to add custom filters
 							Event::run('ushahidi_action.report_filters_ui');
@@ -201,7 +214,11 @@
 							<a href="#" class="small-link-button reset" id="reset_all_filters"><?php echo Kohana::lang('ui_main.reset_all_filters'); ?></a> 
 							<a href="#" id="applyFilters" class="filter-button"><?php echo Kohana::lang('ui_main.filter_reports'); ?></a>
 						</p>
-					</div>          
+						<?php
+						// Action, allows plugins to add custom filter controls
+						Event::run('ushahidi_action.report_filters_controls_ui');
+						?>
+					</div>
 				</div>
 				<!-- end #filters-box -->
 			</div>

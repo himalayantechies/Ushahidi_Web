@@ -85,8 +85,13 @@ class CSVImporter {
 		// Get contents of CSV file
 		$data = file_get_contents($file);
 
-		// Replace carriage return character
-		$replacedata = preg_replace("/\r/","\n",$data);
+		// Normalize new lines, replace ANY unicode new line with \n (should cover Mac OS9, Unix, Windows, etc)
+		$replacedata = preg_replace('/\R/u', "\n", mb_convert_encoding($data, 'UTF-8'));
+
+		// Check for preg error, and fall back to original data
+		if (preg_last_error() !== PREG_NO_ERROR) {
+			$replacedata = $data;
+		}
 
 		// Replace file content
 		file_put_contents($file, $replacedata);
@@ -119,6 +124,16 @@ class CSVImporter {
 			foreach($this->existing_categories as $title => $id)
 			{
 				$temp_cat[utf8::strtoupper($title)] = $id;
+
+				// Add translated titles too
+				$langs = Category_Lang_Model::category_langs($id);
+				if (isset($langs[$id]))
+				{
+					foreach($langs[$id] as $l)
+					{
+						$temp_cat[utf8::strtoupper($l['category_title'])] = $id;
+					}
+				}
 			}
 			$this->existing_categories = $temp_cat;
 		

@@ -110,7 +110,8 @@ class reports_Core {
 		}
 		
 		// Validate photo uploads
-		$post->add_rules('incident_photo', 'upload::valid', 'upload::type[gif,jpg,png,jpeg]', 'upload::size[2M]');
+		$max_upload_size = Kohana::config('settings.max_upload_size');
+		$post->add_rules('incident_photo', 'upload::valid', 'upload::type[gif,jpg,png,jpeg]', "upload::size[".$max_upload_size."M]");
 
 
 		// Validate Personal Information
@@ -420,6 +421,8 @@ class reports_Core {
 	 */
 	public static function save_media($post, $incident)
 	{
+		$upload_dir = Kohana::config('upload.directory', TRUE);
+
 		// Delete Previous Entries
 		ORM::factory('media')->where('incident_id',$incident->id)->where('media_type <> 1')->delete_all();
 
@@ -445,13 +448,14 @@ class reports_Core {
 		if (isset($post->incident_video))
 		{
 			$videoembed = new VideoEmbed();
-			foreach ($post->incident_video as $k => $item)
+			foreach ($post->incident_video as $k => $video_link)
 			{
-				if ( ! empty($item))
+				if ( ! empty($video_link))
 				{
-					$video_thumb = $videoembed->thumbnail($item);
+					$video_thumb = $videoembed->thumbnail($video_link);
 					$new_filename = $incident->id.'_v'.$k.'_'.time();
-					$file_type = substr($video_thumb,-4);
+					$file_type = substr($video_thumb, strrpos($video_thumb, '.'));
+
 					$media_thumb = NULL;
 					$media_medium = NULL;
 
@@ -463,19 +467,46 @@ class reports_Core {
 						$media_medium = $new_filename.'_m'.$file_type;
 						$media_thumb = $new_filename.'_t'.$file_type;
 						
-						file_put_contents(Kohana::config('upload.directory', TRUE).$media_link, @file_get_contents($video_thumb));
+						try {
+							if ($data = file_get_contents($video_thumb))
+							{
+								file_put_contents($upload_dir.$media_link, $data);
+							}
+						}
+						catch (Exception $e)
+						{
+
+						}
 						
 						// IMAGE SIZES: 800X600, 400X300, 89X59
 						// Catch any errors from corrupt image files
 						try
 						{
+							$image = Image::factory($upload_dir.$media_link);
+							
 							// Medium size
-							Image::factory(Kohana::config('upload.directory', TRUE).$media_link)->resize(400,300,Image::HEIGHT)
-								->save(Kohana::config('upload.directory', TRUE).$media_medium);
+							if( $image->height > 300 )
+							{
+								Image::factory($upload_dir.$media_link)->resize(400,300,Image::HEIGHT)
+									->save($upload_dir.$media_medium);
+							}
+							else
+							{
+								// Cannot reuse the original image as it is deleted a bit further down
+								$image->save($upload_dir.$media_medium);
+							}
 							
 							// Thumbnail
-							Image::factory(Kohana::config('upload.directory', TRUE).$media_link)->resize(89,59,Image::HEIGHT)
-								->save(Kohana::config('upload.directory', TRUE).$media_thumb);
+							if( $image->height > 59 )
+							{
+								Image::factory($upload_dir.$media_link)->resize(89,59,Image::HEIGHT)
+									->save($upload_dir.$media_thumb);
+							}
+							else
+							{
+								// Reuse the medium image when it is small enough
+								$media_thumb = $media_medium;
+							}
 						}
 						catch (Exception $e)
 						{
@@ -487,28 +518,40 @@ class reports_Core {
 						
 						// Okay, now we have these three different files on the server, now check to see
 						//   if we should be dropping them on the CDN
-						
-						if (Kohana::config("cdn.cdn_store_dynamic_content"))
+
+						$local_directory = rtrim($upload_dir, '/').'/';
+						if ($media_medium AND $media_thumb AND Kohana::config("cdn.cdn_store_dynamic_content"))
 						{
-							//$media_link = cdn::upload($media_link);
-							$media_medium = cdn::upload($media_medium);
-							$media_thumb = cdn::upload($media_thumb);
-							
+							$cdn_media_medium = cdn::upload($media_medium);
+							$cdn_media_thumb = cdn::upload($media_thumb);
+
 							// We no longer need the files we created on the server. Remove them.
-							$local_directory = rtrim(Kohana::config('upload.directory', TRUE), '/').'/';
-							//unlink($local_directory.$media_link);
-							unlink($local_directory.$media_medium);
-							unlink($local_directory.$media_thumb);
+
+							if (file_exists($local_directory.$media_medium))
+							{
+								unlink($local_directory.$media_medium);
+							}
+
+							if (file_exists($local_directory.$media_thumb))
+							{
+								unlink($local_directory.$media_thumb);
+							}
+
+							$media_medium = $cdn_media_medium;
+							$media_thumb = $cdn_media_thumb;
 						}
-						// Remove original image
-						unlink(Kohana::config('upload.directory', TRUE).$media_link);
+
+						if (file_exists($local_directory.$media_link)) {
+							// Remove original image
+							unlink($upload_dir.$media_link);
+						}
 					}
 					
 					$video = new Media_Model();
 					$video->location_id = $incident->location_id;
 					$video->incident_id = $incident->id;
 					$video->media_type = 2;		// Video
-					$video->media_link = $item;
+					$video->media_link = $video_link;
 					$video->media_thumb = $media_thumb;
 					$video->media_medium = $media_medium;
 					$video->media_date = date("Y-m-d H:i:s",time());
@@ -527,28 +570,53 @@ class reports_Core {
 			{
 				$new_filename = $incident->id.'_'.$i.'_'.time();
 
-				$file_type = substr($filename,-4);
+				//$file_type = substr($filename,-4);
+				$file_type =".".substr(strrchr($filename, '.'), 1); // replaces the commented line above to take care of images with .jpeg extension.
 				
 				// Name the files for the DB
 				$media_link = $new_filename.$file_type;
 				$media_medium = $new_filename.'_m'.$file_type;
 				$media_thumb = $new_filename.'_t'.$file_type;
-				
+
 				// IMAGE SIZES: 800X600, 400X300, 89X59
 				// Catch any errors from corrupt image files
 				try
 				{
+					$image = Image::factory($filename);
 					// Large size
-					Image::factory($filename)->resize(800,600,Image::AUTO)
-						->save(Kohana::config('upload.directory', TRUE).$media_link);
+					if( $image->width > 800 || $image->height > 600 )
+					{
+						Image::factory($filename)->resize(800,600,Image::AUTO)
+							->save($upload_dir.$media_link);
+					}
+					else
+					{
+						$image->save($upload_dir.$media_link);
+					}
 
 					// Medium size
-					Image::factory($filename)->resize(400,300,Image::HEIGHT)
-						->save(Kohana::config('upload.directory', TRUE).$media_medium);
+					if( $image->height > 300 )
+					{
+						Image::factory($filename)->resize(400,300,Image::HEIGHT)
+							->save($upload_dir.$media_medium);
+					}
+					else
+					{
+						// Reuse the large image when it is small enough
+						$media_medium = $media_link;
+					}
 
 					// Thumbnail
-					Image::factory($filename)->resize(89,59,Image::HEIGHT)
-						->save(Kohana::config('upload.directory', TRUE).$media_thumb);
+					if( $image->height > 59 )
+					{
+						Image::factory($filename)->resize(89,59,Image::HEIGHT)
+							->save($upload_dir.$media_thumb);
+					}
+					else
+					{
+						// Reuse the medium image when it is small enough
+						$media_thumb = $media_medium;
+					}
 				}
 				catch (Kohana_Exception $e)
 				{
@@ -563,15 +631,30 @@ class reports_Core {
 				
 				if (Kohana::config("cdn.cdn_store_dynamic_content"))
 				{
-					$media_link = cdn::upload($media_link);
-					$media_medium = cdn::upload($media_medium);
-					$media_thumb = cdn::upload($media_thumb);
+					$cdn_media_link = cdn::upload($media_link);
+					$cdn_media_medium = cdn::upload($media_medium);
+					$cdn_media_thumb = cdn::upload($media_thumb);
 					
 					// We no longer need the files we created on the server. Remove them.
-					$local_directory = rtrim(Kohana::config('upload.directory', TRUE), '/').'/';
-					unlink($local_directory.$media_link);
-					unlink($local_directory.$media_medium);
-					unlink($local_directory.$media_thumb);
+					$local_directory = rtrim($upload_dir, '/').'/';
+					if (file_exists($local_directory.$media_link))
+					{
+						unlink($local_directory.$media_link);
+					}
+ 
+					if (file_exists($local_directory.$media_medium))
+					{
+						unlink($local_directory.$media_medium);
+					}
+ 
+					if (file_exists($local_directory.$media_thumb))
+					{
+						unlink($local_directory.$media_thumb);
+					}
+					
+					$media_link = $cdn_media_link;
+					$media_medium = $cdn_media_medium;
+					$media_thumb = $cdn_media_thumb;
 				}
 
 				// Remove the temporary file
@@ -623,6 +706,31 @@ class reports_Core {
 					$form_response->incident_id = $incident->id;
 					$form_response->form_response = $value;
 					$form_response->save();
+				}
+				if($form_response->form_field_id == 2 && !empty($form_response->form_response)) {
+					$count = ORM::factory('follow')
+					->where('incident_id',$form_response->incident_id)
+					->where('follower', $form_response->form_response)
+					->where('follow_type', 1) // Mobile subscription
+					->count_all();
+					if(! $count) {
+						$autoFollow_orm = new Follow_Model();
+						$autoFollow = array();
+						$autoFollow['incident_id'] = $form_response->incident_id;
+						$autoFollow['follow_mobile'] = $form_response->form_response;
+						$autoFollow['follow_type'] = 1;
+						$autoFollow['follow_date'] = date("Y-m-d H:i:s",time());
+						if ($autoFollow_orm->validate($autoFollow))
+						{
+							if ( ! empty($autoFollow->follow_mobile))
+							{
+								follow::_send_mobile_alert($autoFollow, $autoFollow_orm);
+								//$this->session->set('follow_mobile', $autoFollow->follow_mobile);
+							}
+						
+						}
+
+					}
 				}
 			}
 		}	
@@ -678,7 +786,7 @@ class reports_Core {
 		
 		// Split selected parameters on ","
 		// For simplicity, always turn them into arrays even theres just one value
-		$exclude_params = array('c', 'v', 'm', 'mode', 'sw', 'ne', 'start_loc');
+		$exclude_params = array('c', 'v', 'm', 'mode', 'sw', 'ne', 'start_loc', 'adm');
 		foreach ($url_data as $key => $value)
 		{
 			if (in_array($key, $exclude_params) AND ! is_array($value))
@@ -875,6 +983,35 @@ class reports_Core {
 			}
 		}
 		
+		// 
+		// Check if the adm location has been specified
+		// 
+		if (isset($url_data['adm']) AND is_array($url_data['adm']))
+		{
+			$adm_ids = array();
+			$adm_query = '';
+			foreach ($url_data['adm'] as $adm_level)
+			{
+				if (intval($adm_level) >= 0)
+				{
+					$loc = new Location_Filter_Model($adm_level);
+					if($loc->loaded) {
+						$adm_ids[] = $loc->pcode;
+						if($adm_query != '') $adm_query .= ' OR ';
+						$adm_query .= " i.pcode LIKE '".$loc->pcode."%' ";
+					}
+				}
+			}
+			
+			if (count($adm_ids) > 0)
+			{
+				array_push(self::$params, 
+					' ('.$adm_query.') '
+				);	
+				
+			}
+		}
+
 		//
 		// Check if they're filtering over custom form fields
 		//
@@ -939,7 +1076,7 @@ class reports_Core {
 		
 		// In case a plugin or something wants to get in on the parameter fetching fun
 		Event::run('ushahidi_filter.fetch_incidents_set_params', self::$params);
-		
+
 		//> END PARAMETER FETCH
 
 		// Check for order and sort params
@@ -957,7 +1094,6 @@ class reports_Core {
 		{
 			$sort = (strtoupper($url_data['sort']) == 'ASC') ? 'ASC' : 'DESC';
 		}
-		
 		if ($paginate)
 		{
 			// Fetch incident count

@@ -152,6 +152,7 @@ class Main_Controller extends Template_Controller {
 
     public function index()
     {
+    	//kmlfilter_helper::layer_kmlfilter();
         $this->template->header->this_page = 'home';
         $this->template->content = new View('main/layout');
 
@@ -232,6 +233,24 @@ class Main_Controller extends Template_Controller {
 			);
 		}
 		$this->template->content->categories = $parent_categories;
+		
+		$parent_locations = array();
+		$adm_level = Kohana::config('map.adm_level');
+		if(is_numeric($adm_level)) {
+			$locfilter_model = new Database();
+			$parent_locations[$adm_level] = $locfilter_model->query("SELECT DISTINCT pcode, id, name FROM ".$this->table_prefix.".location_filter WHERE adm_level = '".$level."' GROUP BY pcode ORDER BY name"); 
+		} else if(is_array($adm_level)) {
+			$locfilter_model = new Database();
+			foreach($adm_level as $level) {
+				$parent_locations[$level] = $locfilter_model->query("SELECT DISTINCT pcode, id, name FROM ".$this->table_prefix.".location_filter WHERE adm_level = '".$level."' GROUP BY pcode ORDER BY name");
+			}
+		} else {
+			foreach(location_filter::$admLevels as $adm_level => $admlvl) {
+				$locfilter_model = new Database();
+				$parent_locations[$adm_level] = $locfilter_model->query("SELECT DISTINCT pcode, id, name FROM ".$this->table_prefix.".location_filter WHERE adm_level = '".$adm_level."' GROUP BY pcode ORDER BY name");
+			}
+		}
+		$this->template->content->locations = $parent_locations;
 
 		// Get all active Layers (KMZ/KML)
 		$layers = array();
@@ -298,6 +317,7 @@ class Main_Controller extends Template_Controller {
 		$this->template->content->external_apps = $external_apps;
 
         // Get The START, END and Incident Dates
+		$intervalDate = ""; // HT: manual intervalDate
         $startDate = "";
 		$endDate = "";
 		$display_startDate = 0;
@@ -403,6 +423,14 @@ class Main_Controller extends Template_Controller {
 			$show_year++;
 		}
 
+		//HT: Manaul time interval form input
+		$intervals = array('' =>'Auto', 'hour' => 'Hourly', 'day' => 'Daily', 'week' => 'Weekly', 'month' => 'Monthly');
+		foreach($intervals as $val => $label) {
+			$intervalDate .= "<option value=\"".$val."\"";
+			$intervalDate .= ">".Kohana::lang('ui_main.'.$label)."</option>";
+		}
+		// HT: End of time interval form input
+
 		Event::run('ushahidi_filter.active_startDate', $display_startDate);
 		Event::run('ushahidi_filter.active_endDate', $display_endDate);
 		Event::run('ushahidi_filter.startDate', $startDate);
@@ -410,6 +438,7 @@ class Main_Controller extends Template_Controller {
 
 		$this->template->content->div_timeline->startDate = $startDate;
 		$this->template->content->div_timeline->endDate = $endDate;
+		$this->template->content->div_timeline->intervalDate = $intervalDate; // HT: manual interval time selection options
 
 		// Javascript Header
 		$this->themes->map_enabled = TRUE;
@@ -459,6 +488,7 @@ class Main_Controller extends Template_Controller {
 	public function _pre_render()
 	{
 		$this->themes->requirements();
+		$this->themes->plugin_requirements();
 		$this->template->header->header_block = $this->themes->header_block();
 		$this->template->footer->footer_block = $this->themes->footer_block();
 	}

@@ -19,6 +19,7 @@ Author Email: caleb@ushahidi.com
   div.search-form input.text:focus { border-color: #d24836; }
   div.submit-incident a, .btn_submit,
   div.filters ul li a:hover, div.filters ul li a.active,
+  div.location-filters ul li a:hover, div.location-filters ul li a.active,
   ul.category-filters li a:hover, ul.category-filters li a.active { background-color:#d24836; }
   
   /* Lighter Primary Color - for hover effects */
@@ -179,6 +180,7 @@ div#right { position:absolute; z-index:1000; }
   .page-main ul.category-filters li a:hover, 
   .page-main ul.category-filters li a.active { background:none; border:1px solid #c2c2c2; color:inherit; }
   
+  
   /* home page report type filters */
   #report-type-filter { overflow:auto; padding:5px; margin:0; } 
   div.filters ul li { float:none; margin-bottom:2px; display:block; overflow:auto; }
@@ -186,6 +188,14 @@ div#right { position:absolute; z-index:1000; }
   div.filters ul li a span { font-size:10px; }
   div.filters ul li a:hover, div.filters ul li a.active { -moz-border-radius: 3px; -webkit-border-radius: 3px; display:block; float:left; padding:3px 5px 2px; background:none; border:1px solid #c2c2c2; color:inherit; margin:0; }
 
+  .page-main #report-location-filter { padding:5px; float:left; width:175px;  }
+  .page-main .location-filters { background:none; border:0; padding:0; }
+  .page-main .location-filters ul li { float:none; margin-bottom:2px; display:block; overflow:auto; }
+  .page-main .location-filters ul li a { color:#000; font-weight:bold; padding:3px 5px 2px; margin:1px; font-size:10px; display:block; float:left; }
+  .page-main .location-filters ul li a span { font-size:10px; }
+  .page-main .location-filters ul li a:hover, 
+  .page-main .location-filters ul li a.active { -moz-border-radius: 3px; -webkit-border-radius: 3px; display:block; float:left; padding:3px 5px 2px; background:none; border:1px solid #c2c2c2; color:inherit; margin:0; } 
+  
   /* KML layers & Other Deployments */
   /*toggle buttons */
   #layers-menu-toggle { position:absolute; top:20px; left:220px; width:60px; }

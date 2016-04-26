@@ -547,6 +547,15 @@ class Reports_Controller extends Admin_Controller {
 					$form['longitude'] = $feed_item->location->longitude;
 					$form['location_name'] = $feed_item->location->location_name;
 				}
+				// HT: new code
+				$feed_item_categories = ORM::factory('feed_item_category')->where('feed_item_id', $feed_item->id)->select_list('id', 'category_id');
+				if ($feed_item_categories)
+				{
+					foreach($feed_item_categories as $feed_item_category) {
+						$form['incident_category'][] = $feed_item_category;
+					}
+				}
+				// HT: end of new code
 			}
 			else
 			{
@@ -596,6 +605,8 @@ class Reports_Controller extends Admin_Controller {
 
 				// STEP 2: SAVE INCIDENT
 				$incident = new Incident_Model($id);
+				//Location filter add before incident save
+				location_filter::save($post, $incident);
 				reports::save_report($post, $incident, $location->id);
 
 				// STEP 2b: Record Approval/Verification Action
@@ -801,12 +812,12 @@ class Reports_Controller extends Admin_Controller {
 		// Retrieve Previous & Next Records
 		$previous = ORM::factory('incident')->where('id < ', $id)->orderby('id','desc')->find();
 		$previous_url = $previous->loaded
-		    ? url::base().'admin/reports/edit/'.$previous->id
-		    : url::base().'admin/reports/';
+		    ? url::site('admin/reports/edit/'.$previous->id)
+		    : url::site('admin/reports/');
 		$next = ORM::factory('incident')->where('id > ', $id)->orderby('id','desc')->find();
 		$next_url = $next->loaded
-		    ? url::base().'admin/reports/edit/'.$next->id
-		    : url::base().'admin/reports/';
+		    ? url::site('admin/reports/edit/'.$next->id)
+		    : url::site('admin/reports/');
 		$this->template->content->previous_url = $previous_url;
 		$this->template->content->next_url = $next_url;
 
@@ -1130,6 +1141,20 @@ class Reports_Controller extends Admin_Controller {
 		if ($_POST)
 		{
 			// Instantiate Validation, use $post, so we don't overwrite $_POST fields with our own things
+			// HT: New code for category save with parent
+			$post = arr::extract($_POST, 'parent_id',
+					'category_title', 'category_description', 'category_color');
+
+			// Category instance for the operation
+			$category = new Category_Model();
+			if ($category->validate($post)) {
+				$category->save();
+				$form_saved = TRUE;
+
+				echo json_encode(array("status"=>"saved", "id"=>$category->id));
+			}
+			// HT: End of code for category save with parent
+			/*
 			$post = Validation::factory($_POST);
 
 			 //	Add some filters
@@ -1152,7 +1177,7 @@ class Reports_Controller extends Admin_Controller {
 				$form_saved = TRUE;
 
 				echo json_encode(array("status"=>"saved", "id"=>$category->id));
-			}
+			}*/
 			else
 			{
 				echo json_encode(array("status"=>"error"));
@@ -1164,15 +1189,63 @@ class Reports_Controller extends Admin_Controller {
 		}
 	}
 
+	/** Deletes all reports from the database **/
+	public function deleteall() {
+
+		// Only superadmins should be able to do this...
+		if ( ! $this->auth->has_permission("delete_all_reports"))
+		{
+			url::redirect(url::site() . 'admin/dashboard');
+		}
+
+		if (isset($_POST["confirm_delete_all"]) && $_POST["confirm_delete_all"] == 1)
+		{
+			$table_prefix = Kohana::config('database.default.table_prefix');
+
+			Database::instance()->query("UPDATE `" . $table_prefix . "message` SET `incident_id` = 0;");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "media`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "location`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "comment`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "rating`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "form_response`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "incident_person`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "incident_lang`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "incident_category`");
+			Database::instance()->query("TRUNCATE TABLE `" . $table_prefix . "incident`");
+		}
+
+
+		$this->template->content = new View('admin/reports/delete_all');
+		$this->template->content->report_count = Incident_Model::get_total_reports();
+		$this->themes->js = new View('admin/reports/delete_all_js');
+
+
+	}
+
 	/* private functions */
 
 	// Dynamic categories form fields
 	private function _new_categories_form_arr()
 	{
+		// HT: Parent category list
+		$parents_array = ORM::factory('category')
+		->where('parent_id','0')
+		->where('category_trusted != 1')
+		->select_list('id', 'category_title');
+
+		// add none to the list
+		$parents_array[0] = "--- Top Level Category ---";
+
+		// Put "--- Top Level Category ---" at the top of the list
+		ksort($parents_array);
+		// HT: End of Parent category list
+
 		return array(
 			'category_name' => '',
 			'category_description' => '',
 			'category_color' => '',
+			'parent_id' => 0, // HT: new category parent
+			'category_parent_array' => $parents_array, // HT: new category parent
 		);
 	}
 
@@ -1241,7 +1314,7 @@ class Reports_Controller extends Admin_Controller {
 				$(\"#incident_date\").datepicker({
 				showOn: \"both\",
 				buttonImage: \"" . url::base() . "media/img/icon-calendar.gif\",
-				buttonImageOnly: TRUE
+				buttonImageOnly: true
 				});
 				});
 			</script>";
@@ -1252,10 +1325,10 @@ class Reports_Controller extends Admin_Controller {
 	{
 		return "<script type=\"text/javascript\">
 				$(document).ready(function() {
-				$('a#category_toggle').click(function() {
-				$('#category_add').toggle(400);
-				return FALSE;
-				});
+					$('a#category_toggle').click(function() {console.log('toggle');
+						$('#category_add').toggle(400);
+						return false;
+					});
 				});
 			</script>";
 	}
@@ -1436,5 +1509,22 @@ class Reports_Controller extends Admin_Controller {
 		
 		return $search_form;
 	}
+	
+	/**
+	 * Function used by the photo delete button
+	 * in /admin/reports/edit/N
+	 * @param $id is the DB id of the image to delete
+	 **/
+	public function deletePhoto($id = 0)
+	{
+		$this->auto_render = false;
+		$this->template = null;
+		if($id)
+		{
+			Media_Model::delete_photo($id);
+		}
+	}
+
+
 
 }

@@ -44,10 +44,7 @@ class User_Model extends Auth_User_Model {
 			$user->needinfo = 1;
 		}
 
-		if ($riverid != FALSE)
-		{
-			$user->riverid = $riverid;
-		}
+		$user->riverid = ( $riverid == false ) ? '' : $riverid;
 
 		// Add New Roles if:
 		//    1. We don't require admin to approve users (will be added when admin approves)
@@ -162,16 +159,14 @@ class User_Model extends Auth_User_Model {
 		// Only check for the password if the user id has been specified and we are passing a pw
 		if (isset($post->user_id) AND isset($post->password))
 		{
-			$post->add_rules('password','required', 'alpha_dash', 'length['.$password_length.']');
-			$post->add_callbacks('password' ,'User_Model::validate_password');
+			$post->add_rules('password','required', 'length['.$password_length.']');
 		}
 
 		// If Password field is not blank and is being passed
 		if ( isset($post->password) AND
 			(! empty($post->password) OR (empty($post->password) AND ! empty($post->password_again))))
 		{
-			$post->add_rules('password','required', 'alpha_dash','length['.$password_length.']', 'matches[password_again]');
-			$post->add_callbacks('password' ,'User_Model::validate_password');
+			$post->add_rules('password','required','length['.$password_length.']', 'matches[password_again]');
 		}
 
 		$post->add_rules('role','required','length[3,30]', 'alpha_numeric');
@@ -251,22 +246,6 @@ class User_Model extends Auth_User_Model {
 		}
 	}
 
-	public static function validate_password(Validation $post, $field)
-	{
-		$_is_valid = User_Model::password_rule($post[$field]);
-		if (! $_is_valid)
-		{
-			$post->add_error($field,'alpha_dash');
-		}
-	}
-
-	public static function password_rule($password, $utf8 = FALSE)
-	{
-		return ($utf8 === TRUE)
-			? (bool) preg_match('/^[-\pL\pN#@_]++$/uD', (string) $password)
-			: (bool) preg_match('/^[-a-z0-9#@_]++$/iD', (string) $password);
-	}
-
 	/*
 	* Creates a random int value for a username that isn't already represented in the database
 	*/
@@ -315,11 +294,6 @@ class User_Model extends Auth_User_Model {
 		    ->where('user_id', $this->id)
 		    ->delete_all();
 
-		// Delete user_devices
-		ORM::factory('user_devices')
-		    ->where('user_id', $this->id)
-		    ->delete_all();
-		
 		parent::delete();
 	}
 	

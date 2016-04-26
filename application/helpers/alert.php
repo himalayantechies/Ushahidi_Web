@@ -30,11 +30,14 @@ class alert_Core {
 
 		// Should be 8 distinct characters
 		$alert_code = text::random('distinct', 8);
-
+		// HT: Mobile alert for link
+		$alert_mobile = $post->alert_mobile;
 		$sms_from = self::_sms_from();
 
 		$message = Kohana::lang('ui_admin.confirmation_code').$alert_code
 			.'.'.Kohana::lang('ui_admin.not_case_sensitive');
+		// HT: verify link for mobile
+		$message .= ' '.Kohana::lang('alerts.confirm_request').url::site().'alerts/verify?c='.$alert_code."&m=".$alert_mobile;
 	
 		if (sms::send($post->alert_mobile, $sms_from, $message) === true)
 		{
@@ -46,8 +49,38 @@ class alert_Core {
 				$alert->user_id = $_SESSION['auth_user']->id;
 			}
 			$alert->save();
-
+			
+			// HT: alert mail notification to admin
+			$settings = kohana::config('settings'); // HT Fix associated with sms
+			$from[] = ($settings['alerts_email'])
+			? $settings['alerts_email']
+			: $settings['site_email'];
+			
+			$from[] = $settings['site_name'];
+			$subject = Kohana::lang('alerts.alert_subscription_subject');
+			$msg = Kohana::lang('alerts.subscription_mobile').$post->alert_mobile."<br><br>";
+			$msg .= Kohana::lang('alerts.subscription_request')."<br><br>";
+			if (isset($post->alert_category))
+			{
+				foreach ($post->alert_category as $item)
+				{
+					$category = ORM::factory('category')
+					->where('id',$item)
+					->find();
+				
+					if($category->loaded)
+					{
+				
+						$message .= "<ul><li>".$category->category_title ."</li></ul>";
+						// HT: alert mail notification to admin
+						$msg .= "<ul><li>".$category->category_title ."</li></ul>";
+					}
+				}
+			}
 			self::_add_categories($alert, $post);
+
+			// HT: alert mail notification to admin
+			email::send($settings['site_email'], $from, $subject, $msg, TRUE);
 
 			return TRUE;
 		}
@@ -87,9 +120,13 @@ class alert_Core {
 		
 
 		$message = Kohana::lang('ui_admin.confirmation_code').$alert_code."<br><br>";
+		// HT: alert mail notification to admin
+		$msg = Kohana::lang('alerts.subscription_email').$to."<br><br>";
 		if(!empty($post->alert_category))
 		{
 			$message .= Kohana::lang('alerts.alerts_subscribed')."\n";
+			// HT: alert mail notification to admin
+			$msg .= Kohana::lang('alerts.subscription_request')."<br><br>";
 			foreach ($post->alert_category as $item)
 			{
 				$category = ORM::factory('category')
@@ -100,6 +137,8 @@ class alert_Core {
 				{
 
 					$message .= "<ul><li>".$category->category_title ."</li></ul>";
+					// HT: alert mail notification to admin
+					$msg .= "<ul><li>".$category->category_title ."</li></ul>";
 				}
 			}
 			
@@ -120,6 +159,9 @@ class alert_Core {
 
 			self::_add_categories($alert, $post);
 
+			// HT: alert mail notification to admin
+			$subject = Kohana::lang('alerts.alert_subscription_subject');
+			email::send($settings['site_email'], $from, $subject, $msg, TRUE);
 			return TRUE;
 		}
 

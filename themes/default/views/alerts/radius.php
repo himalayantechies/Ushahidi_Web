@@ -28,6 +28,7 @@
 				<option value="20" selected="selected">20 KM</option>
 				<option value="50">50 KM</option>
 				<option value="100">100 KM</option>
+				<option value="500">500 KM</option>
 			</select>
 		</div>
 		

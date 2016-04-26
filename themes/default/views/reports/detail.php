@@ -55,7 +55,7 @@
 						<?php echo Category_Lang_Model::category_title($category->category_id); ?>
 					</a>
 					<?php 
-				}
+				} 
 			?>
 			</p>
 			<?php
@@ -138,7 +138,37 @@
 			</div>
 			<?php } ?>
 			<!-- end additional fields -->
+			
+			<!-- HT -->
+			<?php
 
+			$cat_filter = array();
+			$cat_filter[] = 20; // Distribution Area
+			$cat_filter[] = 29; // Responding Organization
+			$cat_filter[] = 37; // VDC Trip Summaries
+					
+			/*foreach($custom_forms->form_field_names as $cform) {
+				
+				if($cform['field_name'] == 'Most Affected District' && !empty($cform['field_response'])) {
+				//if(!empty($cform['field_response'])) {
+					$cff = array();
+					$cff[] = array($cform['field_id'], $cform['field_response']);
+					
+					//filterParams={"c"%3A["37"%2C"20"%2C"29"%2C"30"%2C"33"%2C"34"%2C"36"%2C"35"]}
+					//echo '<a href="'.url::site().'reports?'.http_build_query(array('cff' => $cff, 'c' => $cat_filter)).'">'.Kohana::lang('report.who_doing_what.district').'</a>';
+					echo '<a href="'.url::site().'reports?filterParams='.htmlentities(json_encode(array('cff' => $cff, 'c' => $cat_filter))).'">'.Kohana::lang('report.who_doing_what.district').'</a><br/>';
+				}
+			}*/
+			
+			if(isset($adm_levels)) {
+				if(isset($adm_levels[3]))
+				echo '<a href="'.url::site().'reports?'.http_build_query(array('adm' => $adm_levels[3]->id)).'">'.Kohana::lang('report.who_doing_what.district').'</a><br/>';
+				if(isset($adm_levels[4]))
+				echo '<a href="'.url::site().'reports?'.http_build_query(array('adm' => $adm_levels[4]->id)).'">'.Kohana::lang('report.who_doing_what.vdc').'</a><br/>';
+			}
+			?>
+			<!-- HT -->
+			
 			<?php if ($features_count)
 			{
 				?>
@@ -173,12 +203,16 @@
 			// Filter::comments_block - The block that contains posted comments
 			Event::run('ushahidi_filter.comment_block', $comments);
 			echo $comments;
+			
 		?>
 
 		<?php
 			// Filter::comments_form_block - The block that contains the comments form
 			Event::run('ushahidi_filter.comment_form_block', $comments_form);
 			echo $comments_form;
+			
+			// HT: follow feature
+			echo $follow_form;
 		?>
 
 	</div>
@@ -218,8 +252,5 @@
 	</div>
 
 	<div style="clear:both;"></div>
-
-
-
 
 </div>

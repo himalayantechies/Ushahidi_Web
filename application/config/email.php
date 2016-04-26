@@ -8,8 +8,7 @@
  *
  * Valid drivers are: native, sendmail, smtp
  */
-$config['driver'] = 'native';
-
+$config['driver'] = 'sendmail';
 /**
  * To use secure connections with SMTP, set "port" to 465 instead of 25.
  * To enable TLS, set "encryption" to "tls".
@@ -20,6 +19,4 @@ $config['driver'] = 'native';
  * @param   array   smtp: hostname, (username), (password), (port), (auth), (encryption)
  */
 $config['options'] = NULL;
-
-
 $config['max_imap_messages'] = 10;

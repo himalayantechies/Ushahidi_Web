@@ -50,7 +50,9 @@
 				new OpenLayers.Control.Navigation({ dragPanOptions: { enableKinetic: true } }),
 				new OpenLayers.Control.Zoom(),
 				new OpenLayers.Control.Attribution(),
-				new OpenLayers.Control.MousePosition(),
+				new OpenLayers.Control.MousePosition({
+					formatOutput: Ushahidi.convertLongLat
+				}),
 				new OpenLayers.Control.LayerSwitcher()
 			]);
 		} else if (controls.length > 0) {
@@ -83,7 +85,7 @@
 			return;
 		}
 		
-		if (typeof radius == 'undefined' || radius > 0)
+		if (typeof radius == 'undefined' || radius <= 0)
 		{
 			// Set the radius to a default value
 			radius = 20000;
@@ -108,7 +110,7 @@
 	}
 	
 	/**
-	 * Draw circle around point
+	 * Draw circle around point and return the layer
 	 */
 	function drawCircle(map, lat, lon, radius)
 	{
@@ -143,6 +145,8 @@
 		);
 		
 		radiusLayer.addFeatures( [circleFeature] );
+
+		return radiusLayer;
 	}
 	
 	/**

@@ -119,7 +119,30 @@ $(function(){
 					<!-- / category filters -->
 
 				</div>
-				<!-- / report category filters -->
+				
+				<!-- / report adm filters -->
+				<div id="report-location-filter" class="location-filters">
+					<?php 
+					
+					foreach ($locations as $location => $location_info) { ?>
+						<h3><?php echo location_filter::$admLevels[$location]['label'];?></h3>
+					<?php
+						echo '<ul id="adm_switch'.$location.'" >';
+						foreach ($location_info as $loc)
+						{
+							$title = html::escape($loc->name);
+							echo '<li>'
+							    . '<a href="#" id="loc_'. $loc->id .'" title="'.$title.'">'
+							    . '<span class="location-title">'.$title.'</span>'
+							    . '</a>';
+	
+							echo '</li>';
+						}
+						echo '</ul><br/>';
+					?>
+					<!-- / adm filters -->
+				<?php } ?>
+				</div>
 				
 				<!-- report type filters -->
 				<div id="report-type-filter" class="filters">
@@ -139,15 +162,12 @@ $(function(){
 							</div>
 							<!-- / report type filters -->
 				</div>
-			
 				<?php
 				// Action::main_sidebar_post_filters - Add Items to the Entry Page after filters
 				Event::run('ushahidi_action.main_sidebar_post_filters');
 				?>
-						
 			</div>
 			<!-- / filters box -->
-			
 			<?php
 			if ($layers)
 			{

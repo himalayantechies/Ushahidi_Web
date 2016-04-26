@@ -133,10 +133,12 @@ class Reports_Controller extends Main_Controller {
 
 		// Category tree view
 		$this->template->content->category_tree_view = category::get_category_tree_view();
+		// Location tree view
+		$this->template->content->location_filter = location_filter::get_location_filter_view(3) + location_filter::get_location_filter_view(4);
 
 		// Additional view content
 		$this->template->content->custom_forms_filter = new View('reports/submit_custom_forms');
-		$this->template->content->custom_forms_filter->disp_custom_fields = customforms::get_custom_form_fields();
+		$this->template->content->custom_forms_filter->disp_custom_fields = customforms::get_custom_form_fields(FALSE, NULL, FALSE, "filter");
 		$this->template->content->custom_forms_filter->search_form = TRUE;
 		$this->template->content->oldest_timestamp = $oldest_timestamp;
 		$this->template->content->latest_timestamp = $latest_timestamp;
@@ -282,7 +284,7 @@ class Reports_Controller extends Main_Controller {
 
 		// Initialize Default Values
 		$form['incident_date'] = date("m/d/Y",time());
-		$form['incident_hour'] = date('g');
+		$form['incident_hour'] = date('h');
 		$form['incident_minute'] = date('i');
 		$form['incident_ampm'] = date('a');
 		$form['country_id'] = Kohana::config('settings.default_country');
@@ -324,6 +326,8 @@ class Reports_Controller extends Main_Controller {
 
 				// STEP 2: SAVE INCIDENT
 				$incident = new Incident_Model();
+				//Location filter add before incident save
+				location_filter::save($post, $incident);
 				reports::save_report($post, $incident, $location->id);
 
 				// STEP 2b: SAVE INCIDENT GEOMETRIES
@@ -440,6 +444,62 @@ class Reports_Controller extends Main_Controller {
 				url::redirect('reports/view/');
 			}
 
+			// HT follow form
+			// Setup and initialize form field names
+			
+			$form_follow = array(
+				'follow_mobile_yes' => '',
+				'follow_mobile' => '',
+				'follow_email_yes' => '',
+				'follow_email' => '',
+				'incident_id' => ''
+			);
+			
+			$errors_follow = $form_follow;
+			$form_follow_error = FALSE;
+			
+			if ($_POST AND Kohana::config('settings.allow_follow') && isset($_POST['follow_email']))
+			{
+				$follow_orm = new Follow_Model();
+				$follow_post = $_POST;
+				$follow_post['incident_id'] = $id;
+				$follow_post['follow_date'] = date("Y-m-d H:i:s",time());
+				
+				$follow_orm1 = new Follow_Model();
+				$follow_post1 = $_POST;
+				$follow_post1['incident_id'] = $id;
+				$follow_post1['follow_date'] = date("Y-m-d H:i:s",time());
+
+				if ($follow_orm->validate($follow_post))
+				{
+					// Yes! everything is valid
+					// Save alert and send out confirmation code
+					if (!empty($_POST['follow_mobile_yes']) && ! empty($follow_post->follow_mobile))
+					{
+						$follow_orm1->validate($follow_post1);
+						follow::_send_mobile_alert($follow_post1, $follow_orm1);
+						$this->session->set('follow_mobile', $follow_post->follow_mobile);
+					}
+
+					if ( !empty($_POST['follow_email_yes']) && ! empty($follow_post->follow_email))
+					{
+						follow::_send_email_alert($follow_post, $follow_orm);
+						$this->session->set('follow_email', $follow_post->follow_email);
+					}
+				
+				}
+				else
+				{
+					// No! We have validation errors, we need to show the form again, with the errors
+					// Repopulate the form fields
+					$form_follow = arr::overwrite($form_follow, $follow_post->as_array());
+
+					// Populate the error fields, if any
+					$errors_follow = arr::overwrite($errors_follow, $follow_post->errors('follow'));
+					$form_follow_error = TRUE;
+				}
+			}
+
 			// Comment Post?
 			// Setup and initialize form field names
 
@@ -450,14 +510,14 @@ class Reports_Controller extends Main_Controller {
 				'comment_ip' => '',
 				'captcha' => ''
 			);
-
+			
 			$captcha = Captcha::factory();
 			$errors = $form;
 			$form_error = FALSE;
 
 			// Check, has the form been submitted, if so, setup validation
 
-			if ($_POST AND Kohana::config('settings.allow_comments') )
+			if ($_POST AND Kohana::config('settings.allow_comments') && isset($_POST['comment_description']))
 			{
 				// Instantiate Validation, use $post, so we don't overwrite $_POST fields with our own things
 				$post = Validation::factory($_POST);
@@ -547,10 +607,10 @@ class Reports_Controller extends Main_Controller {
 					}
 					else
 					{
-						$comment->comment_author = html::strip_tags($post->comment_author, FALSE);
-						$comment->comment_email = html::strip_tags($post->comment_email, FALSE);
+						$comment->comment_author = $post->comment_author;
+						$comment->comment_email = $post->comment_email;
 					}
-					$comment->comment_description = html::strip_tags($post->comment_description, FALSE);
+					$comment->comment_description = $post->comment_description;
 					$comment->comment_ip = $_SERVER['REMOTE_ADDR'];
 					$comment->comment_date = date("Y-m-d H:i:s",time());
 
@@ -559,25 +619,53 @@ class Reports_Controller extends Main_Controller {
 					{
 						$comment->comment_spam = 1;
 						$comment->comment_active = 0;
+						$comment->comment_follow_status = 0; // HT: follow up auto schedule
 					}
 					else
 					{
 						$comment->comment_spam = 0;
 						$comment->comment_active = (Kohana::config('settings.allow_comments') == 1)? 1 : 0;
+						$comment->comment_follow_status = (Kohana::config('settings.allow_comments') == 1)? 1 : 0; // HT: follow up auto schedule
 					}
 					$comment->save();
-
+					
 					// Event::comment_add - Added a New Comment
 					Event::run('ushahidi_action.comment_add', $comment);
-
+					
+					if(!empty($comment->comment_email)) {
+						$count = ORM::factory('follow')
+						->where('incident_id',$comment->incident_id)
+						->where('follower', $comment->comment_email)
+						->where('follow_type', 2) // Email subscription
+						->count_all();
+						if(! $count) {
+							$autoFollow_orm = new Follow_Model();
+							$autoFollow = array();
+							$autoFollow['incident_id'] = $comment->incident_id;
+							$autoFollow['follow_email'] = $comment->comment_email;
+							$autoFollow['follow_type'] = 2;
+							$autoFollow['follow_date'] = date("Y-m-d H:i:s",time());
+							if ($autoFollow_orm->validate($autoFollow))
+							{
+								if ( ! empty($autoFollow->follow_email))
+								{
+									follow::_send_email_alert($autoFollow, $autoFollow_orm);
+									$this->session->set('follow_email', $autoFollow->follow_email);
+								}
+							
+							}
+						}
+					}
 					// Notify Admin Of New Comment
-					if ($comment_spam == 0) { // HT: New Code # send notification if not spam
+					// HT: Ensure only valid comments not spam are sent out
+					// as notifications to the administrator
+					if ($comment_spam == 0) { 
 						$send = notifications::notify_admins(
 							"[".Kohana::config('settings.site_name')."] ".
 								Kohana::lang('notifications.admin_new_comment.subject'),
 								Kohana::lang('notifications.admin_new_comment.message')
 								."\n\n'".utf8::strtoupper($incident->incident_title)."'"
-								."\n".url::base().'reports/view/'.$id
+								."\n".url::site('reports/view/'.$id)
 							);
 					}
 					// Redirect
@@ -616,6 +704,8 @@ class Reports_Controller extends Main_Controller {
 			$this->template->content->incident_date = date('M j Y', strtotime($incident->incident_date));
 			$this->template->content->incident_time = date('H:i', strtotime($incident->incident_date));
 			$this->template->content->incident_category = $incident->incident_category;
+			// Adm Levels
+			$this->template->content->adm_levels = location_filter::get_adm_levels($incident->adm_level, $incident->pcode);
 
 			// Incident rating
 			$this->template->content->incident_rating = $this->_get_rating($incident->id, 'original');
@@ -658,6 +748,7 @@ class Reports_Controller extends Main_Controller {
 				}
 				$this->template->content->comments->incident_comments = $incident_comments;
 			}
+
 		}
 		else
 		{
@@ -711,6 +802,31 @@ class Reports_Controller extends Main_Controller {
 			$this->template->content->comments_form->errors = $errors;
 			$this->template->content->comments_form->form_error = $form_error;
 		}
+		// HT: follow
+
+		$this->template->content->follow_form = "";
+
+		if (Kohana::config('settings.allow_follow'))
+		{
+			$this->template->content->follow_form = new View('follow/follow_form');
+
+			$this->template->content->follow_form->user = $this->user;
+			$this->template->content->follow_form->form = $form_follow;
+			$this->template->content->follow_form->form_field_names = $form_field_names;
+			$this->template->content->follow_form->captcha = $captcha;
+			$this->template->content->follow_form->errors = $errors_follow;
+			$this->template->content->follow_form->form_error = $form_follow_error;
+			
+			// Display Mobile Option?
+			$this->template->content->follow_form->show_mobile = TRUE;
+	
+			if ( ! Kohana::config("settings.sms_provider"))
+			{
+				// Hide Mobile
+				$this->template->content->follow_form->show_mobile = FALSE;
+			}
+		}
+		
 
 		// If the Admin is Logged in - Allow for an edit link
 		$this->template->content->logged_in = $this->logged_in;
@@ -723,6 +839,8 @@ class Reports_Controller extends Main_Controller {
 	{
 		$this->template->header->this_page = 'reports_submit';
 		$this->template->content = new View('reports/submit_thanks');
+		// Get Site Email
+		$this->template->content->report_email = Kohana::config('settings.site_email');
 	}
 
 	/**
@@ -913,11 +1031,11 @@ class Reports_Controller extends Main_Controller {
 		
 		if ($type == 'original')
 		{
-			$result = $this->db->query('SELECT SUM(rating) as total_rating FROM rating WHERE incident_id = ?', $id);
+			$result = $this->db->query('SELECT SUM(rating) as total_rating FROM '.$this->table_prefix.'rating WHERE incident_id = ?', $id);
 		}
 		elseif ($type == 'comment')
 		{
-			$result = $this->db->query('SELECT SUM(rating) as total_rating FROM rating WHERE comment_id = ?', $id);
+			$result = $this->db->query('SELECT SUM(rating) as total_rating FROM '.$this->table_prefix.'rating WHERE comment_id = ?', $id);
 		}
 		
 		if ($result->count() == 0 OR $result->current()->total_rating == NULL) return 0;
@@ -975,4 +1093,70 @@ class Reports_Controller extends Main_Controller {
 		echo json_encode(array("status"=>"success", "response"=>$form_fields));
 	}
 
+	public function force_schedule($type = 'comment', $start = 0, $end = 0)
+	{
+		$this->template = "";
+		$this->auto_render = FALSE;
+		print_r($type.':'.$start.':'.$end.'\n');
+		if($type == 'comment') {
+			$comments = ORM::factory('comment')->where('id >=', $start)->where('id <=', $end)->find_all();
+			foreach($comments as $comment) {
+				if(!empty($comment->comment_email)) {
+					$count = ORM::factory('follow')
+						->where('incident_id',$comment->incident_id)
+						->where('follower', $comment->comment_email)
+						->where('follow_type', 2) // Email subscription
+						->count_all();
+					if(! $count) {
+						$autoFollow_orm = new Follow_Model();
+						$autoFollow = array();
+						$autoFollow['incident_id'] = $comment->incident_id;
+						$autoFollow['follow_email'] = $comment->comment_email;
+						$autoFollow['follow_type'] = 2;
+						$autoFollow['follow_date'] = date("Y-m-d H:i:s",time());
+						if ($autoFollow_orm->validate($autoFollow))
+						{
+							if ( ! empty($autoFollow->follow_email))
+							{
+								follow::_send_email_alert($autoFollow, $autoFollow_orm, FALSE);
+								print_r('\n'.$comment->incident_id);
+							}
+						
+						}
+					}
+				}
+			}
+		}
+		if($type == 'incident') {
+			$form_responses = ORM::factory('form_response')->where('incident_id >=', $start)->where('incident_id <=', $end)->find_all();
+			foreach($form_responses as $form_response) {
+				if($form_response->form_field_id == 2 && !empty($form_response->form_response)) {
+					$count = ORM::factory('follow')
+					->where('incident_id',$form_response->incident_id)
+					->where('follower', $form_response->form_response)
+					->where('follow_type', 1) // Mobile subscription
+					->count_all();
+					if(! $count) {
+						$autoFollow_orm = new Follow_Model();
+						$autoFollow = array();
+						$autoFollow['incident_id'] = $form_response->incident_id;
+						$autoFollow['follow_mobile'] = $form_response->form_response;
+						$autoFollow['follow_type'] = 1;
+						$autoFollow['follow_date'] = date("Y-m-d H:i:s",time());
+						if ($autoFollow_orm->validate($autoFollow))
+						{
+							if ( ! empty($autoFollow->follow_mobile))
+							{
+								follow::_send_mobile_alert($autoFollow, $autoFollow_orm, FALSE);
+								print_r('\n'.$form_response->incident_id);
+							}
+					
+						}
+
+					}
+				}
+			}
+			
+		}
+	}
 }

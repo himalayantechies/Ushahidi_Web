@@ -28,11 +28,12 @@ class html extends html_Core {
 		// $config->set('Core.Encoding', 'UTF-8');
 		// $config->set('HTML.Doctype', 'XHTML 1.0 Transitional');
 		$config->set('Core.EnableIDNA', TRUE);
+		$config->set('Cache.SerializerPath', APPPATH.'cache');
 		$config->set('HTML.Allowed', Kohana::config('config.allowed_html', FALSE, TRUE));
 		// Allow some basic iframes
 		$config->set('HTML.SafeIframe', true);
 		$config->set('URI.SafeIframeRegexp', 
-			Kohana::config('config.allowed_iframe_regexp', FALSE, TRUE)
+			Kohana::config('config.safe_iframe_regexp', FALSE, TRUE)
 		);
 		$config->set('Filter.YouTube', true);
 		$purifier = new HTMLPurifier($config);
@@ -59,6 +60,7 @@ class html extends html_Core {
 		// $config->set('Core.Encoding', 'UTF-8');
 		// $config->set('HTML.Doctype', 'XHTML 1.0 Transitional');
 		$config->set('Core.EnableIDNA', TRUE);
+		$config->set('Cache.SerializerPath', APPPATH.'cache');
 		$config->set('HTML.Allowed', "");
 		
 		$purifier = new HTMLPurifier($config);
@@ -93,15 +95,16 @@ class html extends html_Core {
 	 * This should be used to escape html entities, etc.
 	 * 
 	 * @param string $input
+	 * @param bool $double_encode
 	 * @return string
 	 */
-	public function escape($input)
+	public function escape($input, $double_encode = FALSE)
 	{
 		// Ensure we have valid correctly encoded string..
 		// http://stackoverflow.com/questions/1412239/why-call-mb-convert-encoding-to-sanitize-text
 		$input = mb_convert_encoding($input, "UTF-8", "UTF-8");
 		// why are we using html entities? this -> http://stackoverflow.com/a/110576/992171
-		return htmlentities($input, ENT_QUOTES, 'UTF-8');
+		return htmlentities($input, ENT_QUOTES, 'UTF-8', $double_encode);
 	}
 	
 }

@@ -62,17 +62,21 @@ class Settings_Controller extends Admin_Controller {
 			'blocks_per_row' => '',
 			'allow_alerts' => '',
 			'allow_reports' => '',
+			'allow_follow' => '',
 			'allow_comments' => '',
+			'max_upload_size' => '',
 			'allow_feed' => '',
+			'allow_feed_category' => '',
+			'feed_geolocation_user' => '',
 			'allow_stat_sharing' => '',
 			'cache_pages' => '',
 			'cache_pages_lifetime' => '',
 			'private_deployment' => '',
 			'manually_approve_users' => '',
 			'require_email_confirmation' => '',
-			'checkins' => '',
 			'google_analytics' => '',
-			'api_akismet' => ''
+			'api_akismet' => '',
+			'alert_days' => 0, // HT: No of days of alert to be sent
 		);
 		//	Copy the form as errors, so the errors will be stored with keys
 		//	corresponding to the form field names
@@ -106,17 +110,21 @@ class Settings_Controller extends Admin_Controller {
 			$post->add_rules('blocks_per_row','required','numeric');
 			$post->add_rules('allow_alerts','required','between[0,1]');
 			$post->add_rules('allow_reports','required','between[0,1]');
+			$post->add_rules('allow_follow','required','between[0,1]');
+			$post->add_rules('max_upload_size','length[0,50]', 'alpha_numeric');
 			$post->add_rules('allow_comments','required','between[0,2]');
 			$post->add_rules('allow_feed','required','between[0,1]');
+			$post->add_rules('allow_feed_category','required','between[0,1]');
+			$post->add_rules('feed_geolocation_user','length[0,100]');
 			$post->add_rules('allow_stat_sharing','required','between[0,1]');
 			$post->add_rules('cache_pages','required','between[0,1]');
 			$post->add_rules('cache_pages_lifetime','required','in_array[60,300,600,900,1800]');
 			$post->add_rules('private_deployment','required','between[0,1]');
 			$post->add_rules('manually_approve_users','required','between[0,1]');
 			$post->add_rules('require_email_confirmation','required','between[0,1]');
-			$post->add_rules('checkins','required','between[0,1]');
 			$post->add_rules('google_analytics','length[0,20]');
 			$post->add_rules('api_akismet','length[0,100]', 'alpha_numeric');
+			$post->add_rules('alert_days', 'numeric'); // HT: No of days of alert to be sent
 
 			// Add rules for file upload
 			$files = Validation::factory($_FILES);
@@ -240,6 +248,7 @@ class Settings_Controller extends Admin_Controller {
 		else
 		{
 			$settings = Settings_Model::get_array();
+			$settings['alert_days'] = (isset($settings['alert_days'])) ? $settings['alert_days'] : 0; // HT: might not be in database so calling manually retrun NULL if not exist
 
 			$form = array(
 				'site_name' => $settings['site_name'],
@@ -258,17 +267,21 @@ class Settings_Controller extends Admin_Controller {
 				'blocks_per_row' => $settings['blocks_per_row'],
 				'allow_alerts' => $settings['allow_alerts'],
 				'allow_reports' => $settings['allow_reports'],
+				'allow_follow' => (isset($settings['allow_follow'])) ? $settings['allow_follow'] : 0,
 				'allow_comments' => $settings['allow_comments'],
+				'max_upload_size' => $settings['max_upload_size'],
 				'allow_feed' => $settings['allow_feed'],
+				'allow_feed_category' => $settings['allow_feed_category'],
+				'feed_geolocation_user' => isset($settings['feed_geolocation_user']) ? $settings['feed_geolocation_user'] : null,
 				'allow_stat_sharing' => $settings['allow_stat_sharing'],
 				'cache_pages' => $settings['cache_pages'],
 				'cache_pages_lifetime' => $settings['cache_pages_lifetime'],
 				'private_deployment' => $settings['private_deployment'],
 				'manually_approve_users' => $settings['manually_approve_users'],
 				'require_email_confirmation' => $settings['require_email_confirmation'],
-				'checkins' => $settings['checkins'],
 				'google_analytics' => $settings['google_analytics'],
-				'api_akismet' => $settings['api_akismet']
+				'api_akismet' => $settings['api_akismet'],
+				'alert_days' => $settings['alert_days'] // HT: No of days of alert to be sent
 			);
 		}
 
@@ -361,7 +374,9 @@ class Settings_Controller extends Admin_Controller {
 			'default_map_all_icon' => '',
 			'default_map_all_icon_id' => '',
 			'delete_default_map_all_icon' => '',
-			'enable_timeline' => ''
+			'enable_timeline' => '',
+			'timeline_graph' => '', // HT: To choose graph type line or bar
+			'timeline_point_label' => '' // HT: Timeline graph point label
 		);
 		//	Copy the form as errors, so the errors will be stored with keys
 		//	corresponding to the form field names
@@ -386,8 +401,9 @@ class Settings_Controller extends Admin_Controller {
 			    ->add_rules('default_map_all','required', 'alpha_numeric', 'length[6,6]')
 			    ->add_rules('api_google', 'length[0,200]')
 			    ->add_rules('api_live', 'length[0,200]')
-				->add_rules('enable_timeline', 'numeric', 'length[1,1]');
-			
+				->add_rules('enable_timeline', 'numeric', 'length[1,1]')
+				->add_rules('timeline_graph', 'in_array[line, bar]') // HT: Timeline graph type
+				->add_rules('timeline_point_label', 'numeric', 'length[1,1]'); // HT: Timeline graph type
 
 			// Add rules for file upload
 			$files = Validation::factory($_FILES);
@@ -396,9 +412,15 @@ class Settings_Controller extends Admin_Controller {
 			// Test to see if things passed the rule checks
 			if ($post->validate() AND $files->validate(FALSE))
 			{
+				// HT: Default timeline_graph if not in database
+				if(!Settings_Model::get_setting('timeline_graph'))
+					Settings_Model::save_setting('timeline_graph', $post->timeline_graph);
+				if(!Settings_Model::get_setting('timeline_point_label'))
+					Settings_Model::save_setting('timeline_point_label', $post->timeline_point_label);
+
 				// Save all the settings
 				Settings_Model::save_all($post);
-				
+
 				// E.Kala 20th April 2012
 				// Ghetto workaround prevent resetting og Bing Maps API Key
 				// Soon to be addressed conclusively
@@ -407,7 +429,7 @@ class Settings_Controller extends Admin_Controller {
 					Settings_Model::save_setting('api_live', $post->api_live);
 				}
 
-				
+
 				// Deal with default category icon now
 
 				// Check if deleting or updating a new image (or doing nothing)
@@ -480,7 +502,7 @@ class Settings_Controller extends Admin_Controller {
 						Settings_Model::save_setting('default_map_all_icon_id', $media->id);
 					}
 				}
-				
+
 
 				// Delete Settings Cache
 				$this->cache->delete('settings');
@@ -513,6 +535,8 @@ class Settings_Controller extends Admin_Controller {
 		{
 			// Retrieve Current Settings
 			$settings = Settings_Model::get_settings(array_keys($form));
+			$settings['timeline_graph'] = (isset($settings['timeline_graph'])) ? $settings['timeline_graph'] : 'line'; // HT: might not be in database so calling manually retrun NULL if not exist
+			$settings['timeline_point_label'] = (isset($settings['timeline_point_label'])) ? $settings['timeline_point_label'] : false; // HT: might not be in database so calling manually retrun NULL if not exist
 
 			$form = array(
 				'default_map' => $settings['default_map'],
@@ -527,6 +551,8 @@ class Settings_Controller extends Admin_Controller {
 				'default_map_all' => $settings['default_map_all'],
 				'default_map_all_icon_id' => $settings['default_map_all_icon_id'],
 				'enable_timeline' => $settings['enable_timeline'],
+				'timeline_graph' => $settings['timeline_graph'], // HT: Timeline graph type line or bar
+				'timeline_point_label' => $settings['timeline_point_label'] // HT: Timeline graph point label
 			);
 		}
 
@@ -581,7 +607,7 @@ class Settings_Controller extends Admin_Controller {
 			$map_array[$layer->name] = $layer->title;
 		}
 		$this->template->content->map_array = $map_array;
-		
+
 		$this->template->content->yesno_array = array(
 			'1'=>utf8::strtoupper(Kohana::lang('ui_main.yes')),
 			'0'=>utf8::strtoupper(Kohana::lang('ui_main.no')));
@@ -611,7 +637,8 @@ class Settings_Controller extends Admin_Controller {
 			'sms_provider' => '',
 			'sms_no1' => '',
 			'sms_no2' => '',
-			'sms_no3' => ''
+			'sms_no3' => '',
+			'sms_alert_url' => '' // HT: new setting for url on sms
 		);
 		//	Copy the form as errors, so the errors will be stored with keys
 		//	corresponding to the form field names
@@ -635,10 +662,13 @@ class Settings_Controller extends Admin_Controller {
 			$post->add_rules('sms_no1', 'numeric', 'length[1,30]');
 			$post->add_rules('sms_no2', 'numeric', 'length[1,30]');
 			$post->add_rules('sms_no3', 'numeric', 'length[1,30]');
+			$post->add_rules('sms_alert_url','required','between[0,1]'); // HT: new setting for url on sms
 
 			// Test to see if things passed the rule checks
 			if ($post->validate())
 			{
+				if(!Settings_Model::get_setting('sms_alert_url'))
+					Settings_Model::save_setting('sms_alert_url', $post->sms_alert_url);
 				// Yes! everything is valid
 				Settings_Model::save_all($post);
 
@@ -670,12 +700,14 @@ class Settings_Controller extends Admin_Controller {
 		{
 			$settings = Settings_Model::get_settings(array_keys($form))
 			;
+			$settings['sms_alert_url'] = (isset($settings['sms_alert_url'])) ? $settings['sms_alert_url'] : 0; // HT: might not be in database so calling manually return NULL if not exist
 			// Retrieve Current Settings
 			$form = array(
 				'sms_provider' => $settings['sms_provider'],
 				'sms_no1' => $settings['sms_no1'],
 				'sms_no2' => $settings['sms_no2'],
-				'sms_no3' => $settings['sms_no3']
+				'sms_no3' => $settings['sms_no3'],
+				'sms_alert_url' => $settings['sms_alert_url'] // HT: new setting for url on sms
 			);
 		}
 
@@ -683,6 +715,7 @@ class Settings_Controller extends Admin_Controller {
 		$this->template->content->errors = $errors;
 		$this->template->content->form_error = $form_error;
 		$this->template->content->form_saved = $form_saved;
+		$this->template->content->alert_url_array = array('1'=>Kohana::lang('ui_admin.yes'),'0'=>Kohana::lang('ui_admin.no'));
 
 		$this->template->content->sms_provider_array = array_merge(
 			array("" => "-- Select One --"),
@@ -875,7 +908,7 @@ class Settings_Controller extends Admin_Controller {
 		$this->template->content->form_error = $form_error;
 		$this->template->content->form_saved = $form_saved;
 		$this->template->content->yesno_array = array('1'=>utf8::strtoupper(Kohana::lang('ui_main.yes')),'0'=>utf8::strtoupper(Kohana::lang('ui_main.no')));
-		$this->themes->content->is_clean_url_enabled = $this->_check_for_clean_url();
+		$this->template->content->is_clean_url_enabled = $this->_check_for_clean_url();
 
 	}
 
@@ -991,7 +1024,7 @@ class Settings_Controller extends Admin_Controller {
 			"status" => "error",
 
 			// Default response message
-			"response" => sprintf("%d %s %s", $entries, Kohana::lang('ui_admin.cities_loaded'), 
+			"response" => sprintf("%d %s %s", $entries, Kohana::lang('ui_admin.cities_loaded'),
 			                        Kohana::lang('ui_admin.country_not_found'))
 		);
 
@@ -1020,8 +1053,8 @@ class Settings_Controller extends Admin_Controller {
 			{
 				// Decode the JSON responce
 				$response = json_decode($response);
-				
-				$cities = isset($response->elements) 
+
+				$cities = isset($response->elements)
 				    ? $response->elements
 				    : array();
 
@@ -1049,7 +1082,7 @@ class Settings_Controller extends Admin_Controller {
 					{
 						// Skip nameless nodes or nodes with lat/lon
 						if (!isset($city->tags->name) OR ! $city->lat OR ! $city->lon) continue;
-						
+
 						$values_expr->param(':countryid', $country->id);
 						$values_expr->param(':city', $city->tags->name);
 						$values_expr->param(':lat', $city->lat);
@@ -1090,19 +1123,12 @@ class Settings_Controller extends Admin_Controller {
 
 	private function _check_for_clean_url() {
 
-		$url = url::base()."help";
+		$url = url::base() .'reports/';
 
-		$curl_handle = curl_init();
+		$request = new HttpClient($url);
+		$return_code = $request->get_http_response_code();
 
-		curl_setopt($curl_handle, CURLOPT_URL, $url);
-		curl_setopt($curl_handle, CURLOPT_RETURNTRANSFER, true );
-		curl_setopt($curl_handle, CURLOPT_SSL_VERIFYPEER, false);
-		curl_exec($curl_handle);
-
-		$return_code = curl_getinfo($curl_handle,CURLINFO_HTTP_CODE);
-		curl_close($curl_handle);
-
-		return ($return_code ==	 404)? FALSE : TRUE;
+		return ($return_code == 404)? FALSE : TRUE;
 	}
 
 	/**

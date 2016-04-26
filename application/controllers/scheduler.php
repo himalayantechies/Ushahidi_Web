@@ -23,8 +23,15 @@ class Scheduler_Controller extends Controller {
 		{
 			ini_set('max_execution_time', 180);
 		}
-		// Set time limit regardless of ini settings
-		set_time_limit(180);
+
+		// Set time limit only if we're not on safe_mode and set_time_limit is enabled
+		$safe_mode_enabled = ini_get('safe_mode');
+		$disabled_functions = ini_get('disable_functions');
+
+		if (empty($safe_mode_enabled) && strstr($disabled_functions, "set_time_limit") === false)
+		{
+			set_time_limit(180);
+		}
 	}
 
 	public function index()
@@ -36,15 +43,9 @@ class Scheduler_Controller extends Controller {
 		// @todo abstract most of this into a library, especially locking
 		
 		// Ensure settings entry for `scheduler_lock` exists
-		try {
-			Database::instance()->query(
-				"INSERT INTO `".Kohana::config('database.default.table_prefix')."settings`
-				(`key`, `value`) VALUES ('scheduler_lock', 0)");
-		}
-		catch (Kohana_Database_Exception $e)
-		{
-			// ignore database error from already existing scheduler_lock row
-		}
+		Database::instance()->query(
+			"INSERT IGNORE INTO `".Kohana::config('database.default.table_prefix')."settings`
+			(`key`, `value`) VALUES ('scheduler_lock', 0)");
 		
 		// Now try and update the scheduler_lock
 		$result = Database::instance()->query(

@@ -239,11 +239,12 @@ class Json_Controller extends Template_Controller {
 				'thumb' => $thumb,
 				'timestamp' => strtotime($marker->incident_date),
 				'count' => 1,
-				'class' => get_class($marker)
+				'class' => get_class($marker),
+				'title'  => $marker->incident_title
 			);
 			$json_item['geometry'] = array(
 				'type' => 'Point',
-				'coordinates' => array($longitude, $latitude)
+				'coordinates' => array((float)$longitude, (float)$latitude)
 			);
 
 			if ($marker->id == $first_incident_id)
@@ -506,7 +507,7 @@ class Json_Controller extends Template_Controller {
 	 */
 	public function timeline($category_id = 0)
 	{
-		$category_id = (int) $category_id;
+		$category_id = (isset($_GET["c"]) AND ! empty($_GET["c"])) ? (int) $_GET["c"] : (int) $category_id; // HT: set category from url param is 'c' set
 
 		$this->auto_render = FALSE;
 		$db = new Database();
@@ -531,22 +532,22 @@ class Json_Controller extends Template_Controller {
 		// Change select / group by expression based on interval
 		// Not a great way to do this but can't think of a better option
 		// Default values: month
-		$select_date_text = "DATE_FORMAT(incident_date, '%Y-%m-01')";
-		$groupby_date_text = "DATE_FORMAT(incident_date, '%Y%m')";
+		$select_date_text = "DATE_FORMAT(i.incident_date, '%Y-%m-01')";
+		$groupby_date_text = "DATE_FORMAT(i.incident_date, '%Y%m')";
 		if ($interval == 'day')
 		{
-			$select_date_text = "DATE_FORMAT(incident_date, '%Y-%m-%d')";
-			$groupby_date_text = "DATE_FORMAT(incident_date, '%Y%m%d')";
+			$select_date_text = "DATE_FORMAT(i.incident_date, '%Y-%m-%d')";
+			$groupby_date_text = "DATE_FORMAT(i.incident_date, '%Y%m%d')";
 		}
 		elseif ($interval == 'hour')
 		{
-			$select_date_text = "DATE_FORMAT(incident_date, '%Y-%m-%d %H:%M')";
-			$groupby_date_text = "DATE_FORMAT(incident_date, '%Y%m%d%H')";
+			$select_date_text = "DATE_FORMAT(i.incident_date, '%Y-%m-%d %H:%M')";
+			$groupby_date_text = "DATE_FORMAT(i.incident_date, '%Y%m%d%H')";
 		}
 		elseif ($interval == 'week')
 		{
-			$select_date_text = "STR_TO_DATE(CONCAT(CAST(YEARWEEK(incident_date) AS CHAR), ' Sunday'), '%X%V %W')";
-			$groupby_date_text = "YEARWEEK(incident_date)";
+			$select_date_text = "STR_TO_DATE(CONCAT(CAST(YEARWEEK(i.incident_date) AS CHAR), ' Sunday'), '%X%V %W')";
+			$groupby_date_text = "YEARWEEK(i.incident_date)";
 		}
 
 		$graph_data = array();
@@ -566,20 +567,30 @@ class Json_Controller extends Template_Controller {
 			    . 'WHERE (c.id = :cid OR c.parent_id = :cid)';
 			
 			$params[':cid'] = $category_id;
-			$incident_id_in .= " AND incident.id IN ( $query ) ";
+			$incident_id_in .= " AND i.id IN ( $query ) ";
+		}
+		
+		// Apply start and end date filters
+		if (isset($_GET['adm']) AND isset($_GET['adm']))
+		{
+			$adm_model = new Location_Filter_Model($_GET['adm']);
+			if($adm_model->loaded)  {
+				$incident_id_in .= " AND i.pcode LIKE '".$adm_model->pcode."%' ";
+			}
+			
 		}
 		
 		// Apply start and end date filters
 		if (isset($_GET['s']) AND isset($_GET['e']))
 		{
-			$query = 'SELECT id FROM '.$this->table_prefix.'incident '
-			    . 'WHERE incident_date >= :datestart '
-			    . 'AND incident_date <= :dateend ';
+			$query = 'SELECT filtered_incidents.id FROM '.$this->table_prefix.'incident AS filtered_incidents '
+			    . 'WHERE filtered_incidents.incident_date >= :datestart '
+			    . 'AND filtered_incidents.incident_date <= :dateend ';
 
 			// Cast timestamps to int to avoid php error - they'll be sanitized again by db_query
 			$params[':datestart'] = date("Y-m-d H:i:s", (int)$_GET['s']);
 			$params[':dateend'] = date('Y-m-d H:i:s', (int)$_GET['e']);
-			$incident_id_in .= " AND incident.id IN ( $query ) ";
+			$incident_id_in .= " AND i.id IN ( $query ) ";
 		}
 
 		// Apply media type filters
@@ -589,15 +600,16 @@ class Json_Controller extends Template_Controller {
 			    . "WHERE media_type = :mtype ";
 
 			$params[':mtype'] = $_GET['m'];
-			$incident_id_in .= " AND incident.id IN ( $query ) ";
+			$incident_id_in .= " AND i.id IN ( $query ) ";
 		}
 
+		Event::run('ushahidi_filter.timeline_update_query', $incident_id_in); // HT: filter for timeline query
 		// Fetch the timeline data
-		$query = 'SELECT UNIX_TIMESTAMP('.$select_date_text.') AS time, COUNT(id) AS number '
-		    . 'FROM '.$this->table_prefix.'incident '
-		    . 'WHERE incident_active = 1 '.$incident_id_in.' '
-		    . 'GROUP BY '.$groupby_date_text;
-		
+		$query = "SELECT UNIX_TIMESTAMP(".$select_date_text.") AS time, COUNT(i.id) AS number "
+		    . "FROM ".$this->table_prefix."incident AS i "
+		    . "WHERE i.incident_active = 1 ".$incident_id_in." "
+		    . "GROUP BY ".$groupby_date_text;
+
 		foreach ($db->query($query, $params) as $items)
 		{
 			array_push($graph_data[0]['data'], array($items->time * 1000, $items->number));
@@ -610,6 +622,14 @@ class Json_Controller extends Template_Controller {
 			array_push($graph_data[0]['data'], array((int)$_GET['s'] * 1000, 0));
 			array_push($graph_data[0]['data'], array((int)$_GET['e'] * 1000, 0));
 		}
+		// HT: If only one point append start and end with 0 unless start or end has value
+		elseif (count($graph_data[0]['data']) == 1) { 
+			$start = $end = false;
+			if($graph_data[0]['data'][0][0] == (int)$_GET['s']) $start = true;
+			if($graph_data[0]['data'][0][0] == (int)$_GET['e']) $end = true;
+			if(!$start) array_unshift($graph_data[0]['data'], array((int)$_GET['s'] * 1000, 0));
+			if(!$end) array_push($graph_data[0]['data'], array((int)$_GET['e'] * 1000, 0));
+		}
 
 		// Debug: push the query back in json
 		//$graph_data['query'] = $db->last_query();
@@ -620,7 +640,7 @@ class Json_Controller extends Template_Controller {
 	
 
 	/**
-	 * Read in new layer KML via file_get_contents
+	 * Read in new layer KML via HttpClient
 	 * @param int $layer_id - ID of the new KML Layer
 	 */
 	public function layer($layer_id = 0)
@@ -637,22 +657,35 @@ class Json_Controller extends Template_Controller {
 			$layer_url = $layer->layer_url;
 			$layer_file = $layer->layer_file;
 
+			$content = FALSE;
+			
 			if ($layer_url != '')
 			{
 				// Pull from a URL
 				$layer_link = $layer_url;
+        			$layer_request = new HttpClient($layer_link);
+        			$content = $layer_request->execute();
+        			if ($content === FALSE) 
+				{
+					throw new Kohana_Exception($layer_request->get_error_msg());
+				}
 			}
 			else
 			{
 				// Pull from an uploaded file
 				$layer_link = Kohana::config('upload.directory').'/'.$layer_file;
+				$content = file_get_contents($layer_link);
+				if ($content === FALSE) 
+				{
+					throw new Kohana_Exception("Couldn't read KML file: " . $layer_link);
+				}
 			}
 
-			$content = file_get_contents($layer_link);
-
+			//echo $content;
 			if ($content !== false)
 			{
-				echo $content;
+				//echo $content;  // HT Code: uncommented this line and commented the next line.
+				echo $this->render_layer(array('layer_id' => $layer->id, 'content' => $content)); //--Changed by HT while merging
 			}
 		}
 		else
@@ -661,6 +694,18 @@ class Json_Controller extends Template_Controller {
 		}
 	}
 
+	/**
+	 * Return kml layer file content
+	 *
+	 * @param array $layer_features kml layer file data as content and layer_id for layer reference
+	 **/
+	protected function render_layer($layer_features)
+	{
+		// Run event ushahidi_filter.layer_features
+		// Allow plugins to alter kml data before its rendered
+		Event::run('ushahidi_filter.layer_features', $layer_features);
+		return $layer_features;
+	}
 	/**
 	 * Get Geometry JSON
 	 * @param int $incident_id
@@ -801,6 +846,12 @@ class Json_Controller extends Template_Controller {
 		$lat_sum = $lon_sum = 0;
 		foreach ($cluster as $marker)
 		{
+			// Normalising data
+			if (is_array($marker))
+			{
+				$marker = (object) $marker;
+			}
+
 			// Handle both reports::fetch_incidents() response and actual ORM objects
 			$latitude = isset($marker->latitude) ? $marker->latitude : $marker->location->latitude;
 			$longitude = isset($marker->longitude) ? $marker->longitude : $marker->location->longitude;
